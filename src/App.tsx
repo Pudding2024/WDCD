@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { Download, Upload, Copy, RotateCcw, Play, Check, X, ChevronLeft, ChevronRight, List, History as HistoryIcon, Home as HomeIcon } from 'lucide-react';
 
@@ -220,7 +220,7 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
           className="w-full h-96 relative perspective-1000"
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
-          onDragEnd={(e, { offset, velocity }) => {
+          onDragEnd={(_, { offset }) => {
             const swipeLeft = offset.x < -50;
             const swipeRight = offset.x > 50;
             if (swipeRight) handleAnswer(true);
