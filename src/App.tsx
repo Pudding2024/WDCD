@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { Download, Upload, Copy, RotateCcw, Play, Check, X, ChevronLeft, ChevronRight, List, History as HistoryIcon, Home as HomeIcon } from 'lucide-react';
+import { Download, Upload, Copy, RotateCcw, Play, Check, X, ChevronLeft, ChevronRight, List, Trash2, History as HistoryIcon, Home as HomeIcon } from 'lucide-react';
 
 // --- Types ---
 interface Card {
@@ -50,17 +50,18 @@ export default function App() {
   const [activeDeck, setActiveDeck] = useState<Deck | null>(null);
   const [activeTestRecord, setActiveTestRecord] = useState<TestRecord | null>(null);
   const [quizState, setQuizState] = useState<{ currentIndex: number; answers: { [index: number]: boolean } }>({ currentIndex: 0, answers: {} });
+  const [historyKey, setHistoryKey] = useState(0);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void} | null>(null);
+  const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void, submitText?: string} | null>(null);
 
   const showAlert = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const showPrompt = (title: string, onSubmit: (val: string) => void) => {
-    setPromptConfig({ isOpen: true, title, onSubmit });
+  const showPrompt = (title: string, onSubmit: (val: string) => void, submitText?: string) => {
+    setPromptConfig({ isOpen: true, title, onSubmit, submitText });
   };
 
   // Home View
@@ -148,12 +149,25 @@ export default function App() {
           saveDecks(data.decks);
           saveHistory(data.history);
           showAlert('還原成功！');
+          setHistoryKey((prev: number) => prev + 1);
           setCurrentView('history'); // refresh
         } else showAlert('格式不正確！');
       } catch {
         showAlert('解析錯誤！');
       }
     });
+  };
+
+  const handleClearHistory = () => {
+    showPrompt('請輸入「確認刪除」以清空歷史紀錄', (input) => {
+      if (input.trim() === '確認刪除') {
+        saveHistory([]);
+        setHistoryKey((prev: number) => prev + 1);
+        showAlert('歷史紀錄已清空');
+      } else {
+        showAlert('輸入錯誤，未清空紀錄');
+      }
+    }, '確認刪除');
   };
 
   return (
@@ -177,7 +191,7 @@ export default function App() {
             startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
           }
         }} onShowAlert={showAlert} />}
-        {currentView === 'history' && <HistoryView onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onShowAlert={showAlert} />}
+        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onShowAlert={showAlert} />}
       </div>
 
       {/* Custom Toast */}
@@ -221,7 +235,7 @@ export default function App() {
                 />
                 <div className="flex gap-3 justify-end">
                   <button type="button" onClick={() => setPromptConfig(null)} className="px-4 py-2 font-medium text-gray-500 hover:bg-gray-100 rounded-lg transition">取消</button>
-                  <button type="submit" className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow transition">確認</button>
+                  <button type="submit" className={`px-4 py-2 font-bold text-white rounded-lg shadow transition ${promptConfig.submitText === '確認刪除' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{promptConfig.submitText || '確認'}</button>
                 </div>
               </form>
             </div>
@@ -503,7 +517,7 @@ function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onR
   );
 }
 
-function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onShowAlert }: any) {
+function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onShowAlert }: any) {
   const [history, setHistory] = useState<TestRecord[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
 
@@ -568,6 +582,14 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onShowAlert
           </div>
         ))}
       </div>
+      
+      {history.length > 0 && (
+        <div className="mt-8 border-t pt-6">
+          <button onClick={onClearHistory} className="w-full bg-red-100 text-red-600 hover:bg-red-200 font-bold py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+            <Trash2 size={18}/>一鍵刪除歷史紀錄
+          </button>
+        </div>
+      )}
     </div>
   );
 }
