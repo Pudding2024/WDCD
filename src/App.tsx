@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { Download, Upload, Copy, RotateCcw, Play, Check, X, ChevronLeft, ChevronRight, List, History as HistoryIcon, Home as HomeIcon } from 'lucide-react';
 
@@ -181,16 +181,18 @@ export default function App() {
       </div>
 
       {/* Custom Toast */}
-      {toastMessage && (
-        <motion.div 
-          initial={{ opacity: 0, y: -20, x: '-50%' }} 
-          animate={{ opacity: 1, y: 0, x: '-50%' }} 
-          exit={{ opacity: 0, y: -20, x: '-50%' }}
-          className="absolute top-20 left-1/2 z-50 bg-white border border-gray-100 shadow-xl rounded-xl py-3 px-5 flex items-center justify-center pointer-events-none min-w-[250px]"
-        >
-          <span className="text-gray-800 font-medium text-sm">{toastMessage}</span>
-        </motion.div>
-      )}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20, x: '-50%' }} 
+            animate={{ opacity: 1, y: 0, x: '-50%' }} 
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="absolute top-20 left-1/2 z-50 bg-white border border-gray-100 shadow-xl rounded-xl py-3 px-5 flex items-center justify-center pointer-events-none min-w-[250px]"
+          >
+            <span className="text-gray-800 font-medium text-sm">{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Custom Prompt Modal */}
       {promptConfig?.isOpen && (
