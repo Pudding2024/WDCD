@@ -203,7 +203,7 @@ export default function App() {
             startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
           }
         }} onShowAlert={showAlert} />}
-        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} onShowPrompt={showPrompt} />}
+        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} onShowPrompt={showPrompt} onViewRecord={(record: any) => { setActiveTestRecord(record); setCurrentView('result'); }} />}
       </div>
 
       {/* Custom Toast */}
@@ -548,7 +548,7 @@ function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onR
   );
 }
 
-function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onClearDecks, onShowAlert, onShowPrompt }: any) {
+function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onClearDecks, onShowAlert, onShowPrompt, onViewRecord }: any) {
   const [history, setHistory] = useState<TestRecord[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
 
@@ -628,6 +628,7 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
                }} className="text-xs font-semibold px-2 py-1 bg-red-50 text-red-600 rounded">考錯題</button>
               </div>
               <div className="ml-auto flex gap-2 items-center">
+               <button onClick={() => onViewRecord(record)} className="text-xs font-semibold px-2 py-1 bg-green-50 text-green-600 rounded flex items-center gap-1"><List size={12}/>詳情</button>
                <button onClick={() => {
                  navigator.clipboard.writeText(JSON.stringify({ title: record.sourceDeckTitle, cards: record.originalCards }, null, 2)); onShowAlert('已複製測驗牌組');
                }} className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded flex items-center gap-1"><Download size={12}/>匯出</button>
