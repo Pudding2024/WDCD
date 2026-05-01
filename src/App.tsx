@@ -53,14 +53,14 @@ export default function App() {
   const [historyKey, setHistoryKey] = useState(0);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void, submitText?: string, inputType?: 'text' | 'textarea', isDanger?: boolean} | null>(null);
+  const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void, submitText?: string, inputType?: 'text' | 'textarea', isDanger?: boolean, requireInput?: boolean} | null>(null);
 
   const showAlert = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const showPrompt = (title: string, onSubmit: (val: string) => void, options?: { submitText?: string, inputType?: 'text' | 'textarea', isDanger?: boolean }) => {
+  const showPrompt = (title: string, onSubmit: (val: string) => void, options?: { submitText?: string, inputType?: 'text' | 'textarea', isDanger?: boolean, requireInput?: boolean }) => {
     setPromptConfig({ isOpen: true, title, onSubmit, ...options });
   };
 
@@ -232,29 +232,37 @@ export default function App() {
               <h2 className="text-lg font-bold text-gray-800 mb-4">{promptConfig.title}</h2>
               <form onSubmit={(e) => {
                 e.preventDefault();
+                // close prompt first
+                setPromptConfig(null);
+                // if requireInput explicitly set to false, it's a confirmation-only prompt
+                if (promptConfig.requireInput === false) {
+                  promptConfig.onSubmit('');
+                  return;
+                }
                 const formData = new FormData(e.currentTarget);
                 const inputVal = formData.get('promptInput') as string;
-                setPromptConfig(null);
                 if (inputVal && inputVal.trim() !== '') {
                   promptConfig.onSubmit(inputVal);
                 }
               }}>
-                {promptConfig.inputType === 'text' ? (
-                  <input 
-                    type="text"
-                    name="promptInput"
-                    className={`w-full p-3 border rounded-xl focus:ring-2 focus:outline-none mb-4 text-sm ${promptConfig.isDanger ? 'focus:ring-red-500 border-red-300' : 'focus:ring-blue-500'}`}
-                    placeholder="請在此輸入..."
-                    autoFocus
-                    autoComplete="off"
-                  />
-                ) : (
-                  <textarea 
-                    name="promptInput"
-                    className={`w-full h-32 p-3 border rounded-xl focus:ring-2 focus:outline-none mb-4 resize-none text-sm ${promptConfig.isDanger ? 'focus:ring-red-500 border-red-300' : 'focus:ring-blue-500'}`}
-                    placeholder="請在此輸入..."
-                    autoFocus
-                  />
+                {promptConfig.requireInput === false ? null : (
+                  promptConfig.inputType === 'text' ? (
+                    <input 
+                      type="text"
+                      name="promptInput"
+                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:outline-none mb-4 text-sm ${promptConfig.isDanger ? 'focus:ring-red-500 border-red-300' : 'focus:ring-blue-500'}`}
+                      placeholder="請在此輸入..."
+                      autoFocus
+                      autoComplete="off"
+                    />
+                  ) : (
+                    <textarea 
+                      name="promptInput"
+                      className={`w-full h-32 p-3 border rounded-xl focus:ring-2 focus:outline-none mb-4 resize-none text-sm ${promptConfig.isDanger ? 'focus:ring-red-500 border-red-300' : 'focus:ring-blue-500'}`}
+                      placeholder="請在此輸入..."
+                      autoFocus
+                    />
+                  )
                 )}
                 <div className="flex gap-3 justify-end">
                   <button type="button" onClick={() => setPromptConfig(null)} className="px-4 py-2 font-medium text-gray-500 hover:bg-gray-100 rounded-lg transition">取消</button>
@@ -550,19 +558,21 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
   }, []);
 
   const removeDeckAt = (idx: number) => {
-    if (!confirm('確認要刪除此匯入的排組？')) return;
-    const newDecks = decks.filter((_, i) => i !== idx);
-    saveDecks(newDecks);
-    setDecks(newDecks);
-    onShowAlert('已刪除匯入的排組');
+    showPrompt('確認要刪除此匯入的排組？', () => {
+      const newDecks = decks.filter((_, i) => i !== idx);
+      saveDecks(newDecks);
+      setDecks(newDecks);
+      onShowAlert('已刪除匯入的排組');
+    }, { submitText: '刪除', isDanger: true, requireInput: false });
   };
 
   const removeHistoryItem = (id: string) => {
-    if (!confirm('確認要刪除此筆測驗歷史？')) return;
-    const newHistory = history.filter(h => h.id !== id);
-    saveHistory([...newHistory].reverse());
-    setHistory(newHistory);
-    onShowAlert('已刪除測驗歷史');
+    showPrompt('確認要刪除此筆測驗歷史？', () => {
+      const newHistory = history.filter(h => h.id !== id);
+      saveHistory([...newHistory].reverse());
+      setHistory(newHistory);
+      onShowAlert('已刪除測驗歷史');
+    }, { submitText: '刪除', isDanger: true, requireInput: false });
   };
 
   return (
