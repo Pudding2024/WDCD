@@ -15,6 +15,7 @@ interface Deck {
   cards: Card[];
   rootTitle?: string;
   rootCards?: Card[];
+  importedAt?: string;
 }
 
 interface TestRecord {
@@ -67,6 +68,7 @@ export default function App() {
     try {
       const json = JSON.parse(jsonString);
       if (json.title && Array.isArray(json.cards)) {
+        json.importedAt = getTimestamp();
         const decks = getDecks();
         decks.push(json);
         saveDecks(decks);
@@ -520,7 +522,10 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onShowAlert
         {decks.length === 0 && <div className="text-sm text-gray-400">尚無匯入牌組</div>}
         {decks.map((dk, i) => (
           <div key={i} className="bg-white border rounded-xl p-4 shadow-sm flex items-center justify-between">
-            <div className="font-bold truncate max-w-[200px]">{dk.title} <span className="text-xs text-gray-400 font-normal ml-1">({dk.cards.length})</span></div>
+            <div className="flex flex-col">
+              <div className="font-bold truncate max-w-[200px]">{dk.title} <span className="text-xs text-gray-400 font-normal ml-1">({dk.cards.length})</span></div>
+              {dk.importedAt && <div className="text-xs text-gray-400 mt-1">{dk.importedAt}</div>}
+            </div>
             <div className="flex gap-2">
               <button onClick={() => onStartQuiz(dk)} className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200"><Play size={16}/></button>
               <button onClick={() => {
