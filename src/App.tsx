@@ -159,15 +159,27 @@ export default function App() {
   };
 
   const handleClearHistory = () => {
-    showPrompt('請輸入「確認刪除」以清空歷史紀錄', (input) => {
-      if (input.trim() === '確認刪除') {
+    showPrompt('請輸入「確認刪除歷史紀錄」以清空歷史紀錄', (input) => {
+      if (input.trim() === '確認刪除歷史紀錄') {
         saveHistory([]);
         setHistoryKey((prev: number) => prev + 1);
         showAlert('歷史紀錄已清空');
       } else {
         showAlert('輸入錯誤，未清空紀錄');
       }
-    }, '確認刪除');
+    }, '確認刪除歷史紀錄');
+  };
+
+  const handleClearDecks = () => {
+    showPrompt('請輸入「確認刪除匯入的排組」以清空所有牌組', (input) => {
+      if (input.trim() === '確認刪除匯入的排組') {
+        saveDecks([]);
+        setHistoryKey((prev: number) => prev + 1);
+        showAlert('匯入的排組已清空');
+      } else {
+        showAlert('輸入錯誤，未清空排組');
+      }
+    }, '確認刪除匯入的排組');
   };
 
   return (
@@ -191,7 +203,7 @@ export default function App() {
             startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
           }
         }} onShowAlert={showAlert} />}
-        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onShowAlert={showAlert} />}
+        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} />}
       </div>
 
       {/* Custom Toast */}
@@ -517,7 +529,7 @@ function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onR
   );
 }
 
-function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onShowAlert }: any) {
+function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onClearDecks, onShowAlert }: any) {
   const [history, setHistory] = useState<TestRecord[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
 
@@ -583,11 +595,18 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
         ))}
       </div>
       
-      {history.length > 0 && (
-        <div className="mt-8 border-t pt-6">
-          <button onClick={onClearHistory} className="w-full bg-red-100 text-red-600 hover:bg-red-200 font-bold py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2">
-            <Trash2 size={18}/>一鍵刪除歷史紀錄
-          </button>
+      {(history.length > 0 || decks.length > 0) && (
+        <div className="mt-8 border-t pt-6 flex flex-col gap-3">
+          {decks.length > 0 && (
+            <button onClick={onClearDecks} className="w-full bg-red-100 text-red-600 hover:bg-red-200 font-bold py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+              <Trash2 size={18}/>一鍵刪除匯入排組
+            </button>
+          )}
+          {history.length > 0 && (
+            <button onClick={onClearHistory} className="w-full bg-red-100 text-red-600 hover:bg-red-200 font-bold py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2">
+              <Trash2 size={18}/>一鍵刪除歷史紀錄
+            </button>
+          )}
         </div>
       )}
     </div>
