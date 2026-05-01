@@ -203,7 +203,7 @@ export default function App() {
             startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
           }
         }} onShowAlert={showAlert} />}
-        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} />}
+        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} onShowPrompt={showPrompt} />}
       </div>
 
       {/* Custom Toast */}
@@ -548,7 +548,7 @@ function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onR
   );
 }
 
-function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onClearDecks, onShowAlert }: any) {
+function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onClearDecks, onShowAlert, onShowPrompt }: any) {
   const [history, setHistory] = useState<TestRecord[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
 
@@ -558,7 +558,7 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
   }, []);
 
   const removeDeckAt = (idx: number) => {
-    showPrompt('確認要刪除此匯入的排組？', () => {
+    onShowPrompt('確認要刪除此匯入的排組？', () => {
       const newDecks = decks.filter((_, i) => i !== idx);
       saveDecks(newDecks);
       setDecks(newDecks);
@@ -567,7 +567,7 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
   };
 
   const removeHistoryItem = (id: string) => {
-    showPrompt('確認要刪除此筆測驗歷史？', () => {
+    onShowPrompt('確認要刪除此筆測驗歷史？', () => {
       const newHistory = history.filter(h => h.id !== id);
       saveHistory([...newHistory].reverse());
       setHistory(newHistory);
