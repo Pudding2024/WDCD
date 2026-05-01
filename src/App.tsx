@@ -549,6 +549,22 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
     setDecks(getDecks());
   }, []);
 
+  const removeDeckAt = (idx: number) => {
+    if (!confirm('確認要刪除此匯入的排組？')) return;
+    const newDecks = decks.filter((_, i) => i !== idx);
+    saveDecks(newDecks);
+    setDecks(newDecks);
+    onShowAlert('已刪除匯入的排組');
+  };
+
+  const removeHistoryItem = (id: string) => {
+    if (!confirm('確認要刪除此筆測驗歷史？')) return;
+    const newHistory = history.filter(h => h.id !== id);
+    saveHistory([...newHistory].reverse());
+    setHistory(newHistory);
+    onShowAlert('已刪除測驗歷史');
+  };
+
   return (
     <div className="pb-10">
       <div className="flex justify-between gap-2 mb-6">
@@ -570,6 +586,7 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
               <button onClick={() => {
                 navigator.clipboard.writeText(JSON.stringify(dk, null, 2)); onShowAlert('已複製牌組');
               }} className="p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200"><Download size={16}/></button>
+              <button onClick={() => removeDeckAt(i)} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200"><Trash2 size={16}/></button>
             </div>
           </div>
         ))}
@@ -589,7 +606,8 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
               <span className="text-green-600">會 {Object.values(record.results).filter(v=>v).length}</span>
               <span className="text-red-600">不會 {record.originalCards.length - Object.values(record.results).filter(v=>v).length}</span>
             </div>
-            <div className="flex gap-2 mt-1">
+            <div className="flex gap-2 mt-1 items-center">
+              <div className="flex gap-2 items-center">
                <button onClick={() => {
                  onStartQuiz({ title: record.sourceDeckTitle, cards: record.originalCards });
                }} className="text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-600 rounded">重考</button>
@@ -598,9 +616,13 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
                  if(mistakes.length > 0) onStartQuiz({ title: record.sourceDeckTitle + ' 錯題', cards: mistakes });
                  else onShowAlert('本次測驗全對，無錯題可考！');
                }} className="text-xs font-semibold px-2 py-1 bg-red-50 text-red-600 rounded">考錯題</button>
+              </div>
+              <div className="ml-auto flex gap-2 items-center">
                <button onClick={() => {
                  navigator.clipboard.writeText(JSON.stringify({ title: record.sourceDeckTitle, cards: record.originalCards }, null, 2)); onShowAlert('已複製測驗牌組');
-               }} className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded ml-auto flex items-center gap-1"><Download size={12}/>匯出</button>
+               }} className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded flex items-center gap-1"><Download size={12}/>匯出</button>
+               <button onClick={() => removeHistoryItem(record.id)} className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-600 rounded flex items-center gap-1"><Trash2 size={12}/>刪除</button>
+              </div>
             </div>
           </div>
         ))}
