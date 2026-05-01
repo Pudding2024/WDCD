@@ -50,6 +50,18 @@ export default function App() {
   const [activeTestRecord, setActiveTestRecord] = useState<TestRecord | null>(null);
   const [quizState, setQuizState] = useState<{ currentIndex: number; answers: { [index: number]: boolean } }>({ currentIndex: 0, answers: {} });
 
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void} | null>(null);
+
+  const showAlert = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const showPrompt = (title: string, onSubmit: (val: string) => void) => {
+    setPromptConfig({ isOpen: true, title, onSubmit });
+  };
+
   // Home View
   const processImportData = (jsonString: string) => {
     try {
@@ -58,13 +70,13 @@ export default function App() {
         const decks = getDecks();
         decks.push(json);
         saveDecks(decks);
-        alert('匯入成功！');
+        showAlert('匯入成功！');
         setCurrentView('history');
       } else {
-        alert('JSON 格式錯誤，必須包含 title 與 cards 陣列。');
+        showAlert('JSON 格式錯誤，必須包含 title 與 cards 陣列。');
       }
     } catch (err) {
-      alert('解析 JSON 錯誤！請確認格式是否正確。');
+      showAlert('解析 JSON 錯誤！請確認格式是否正確。');
     }
   };
 
@@ -93,7 +105,7 @@ export default function App() {
       ]
     };
     navigator.clipboard.writeText(JSON.stringify(example, null, 2));
-    alert('範例已複製到剪貼簿！');
+    showAlert('範例已複製到剪貼簿！');
   };
 
   const startQuiz = (deck: Deck) => {
@@ -123,23 +135,23 @@ export default function App() {
   const handleGlobalBackup = () => {
     const data = { decks: getDecks(), history: getHistory() };
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-    alert('全部資料已複製到剪貼簿！可以儲存成檔案備份。');
+    showAlert('全部資料已複製到剪貼簿！可以儲存成檔案備份。');
   };
 
   const handleGlobalRestore = () => {
-    const input = prompt('請貼上備份的 JSON 資料：');
-    if (!input) return;
-    try {
-      const data = JSON.parse(input);
-      if (data.decks && data.history) {
-        saveDecks(data.decks);
-        saveHistory(data.history);
-        alert('還原成功！');
-        setCurrentView('history'); // refresh
-      } else alert('格式不正確！');
-    } catch {
-      alert('解析錯誤！');
-    }
+    showPrompt('請貼上備份的 JSON 資料：', (input) => {
+      try {
+        const data = JSON.parse(input);
+        if (data.decks && data.history) {
+          saveDecks(data.decks);
+          saveHistory(data.history);
+          showAlert('還原成功！');
+          setCurrentView('history'); // refresh
+        } else showAlert('格式不正確！');
+      } catch {
+        showAlert('解析錯誤！');
+      }
+    });
   };
 
   return (
@@ -154,7 +166,7 @@ export default function App() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 relative bg-gray-50">
-        {currentView === 'home' && <HomeView onImport={handleImport} onCopyExample={copyExample} onProcessData={processImportData} onHandleFile={handleImportFile} />}
+        {currentView === 'home' && <HomeView onImport={handleImport} onCopyExample={copyExample} onProcessData={processImportData} onHandleFile={handleImportFile} onShowAlert={showAlert} />}
         {currentView === 'quiz' && activeDeck && <QuizView deck={activeDeck} state={quizState} setState={setQuizState} onFinish={finishQuiz} />}
         {currentView === 'result' && activeTestRecord && <ResultView record={activeTestRecord} onRetest={(cards, title, isRoot) => {
           if (isRoot) {
@@ -162,9 +174,56 @@ export default function App() {
           } else {
             startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
           }
-        }} />}
-        {currentView === 'history' && <HistoryView onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} />}
+        }} onShowAlert={showAlert} />}
+        {currentView === 'history' && <HistoryView onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onShowAlert={showAlert} />}
       </div>
+
+      {/* Custom Toast */}
+      {toastMessage && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20, x: '-50%' }} 
+          animate={{ opacity: 1, y: 0, x: '-50%' }} 
+          exit={{ opacity: 0, y: -20, x: '-50%' }}
+          className="absolute top-20 left-1/2 z-50 bg-white border border-gray-100 shadow-xl rounded-xl py-3 px-5 flex items-center justify-center pointer-events-none min-w-[250px]"
+        >
+          <span className="text-gray-800 font-medium text-sm">{toastMessage}</span>
+        </motion.div>
+      )}
+
+      {/* Custom Prompt Modal */}
+      {promptConfig?.isOpen && (
+        <div className="absolute inset-0 z-50 bg-black/40 flex items-center justify-center p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+          >
+            <div className="p-5">
+              <h2 className="text-lg font-bold text-gray-800 mb-4">{promptConfig.title}</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const inputVal = formData.get('promptInput') as string;
+                setPromptConfig(null);
+                if (inputVal && inputVal.trim() !== '') {
+                  promptConfig.onSubmit(inputVal);
+                }
+              }}>
+                <textarea 
+                  name="promptInput"
+                  className="w-full h-32 p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none mb-4 resize-none text-sm"
+                  placeholder="請在此輸入..."
+                  autoFocus
+                />
+                <div className="flex gap-3 justify-end">
+                  <button type="button" onClick={() => setPromptConfig(null)} className="px-4 py-2 font-medium text-gray-500 hover:bg-gray-100 rounded-lg transition">取消</button>
+                  <button type="submit" className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow transition">確認</button>
+                </div>
+              </form>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
@@ -175,12 +234,14 @@ function HomeView({
   onImport, 
   onCopyExample, 
   onProcessData, 
-  onHandleFile 
+  onHandleFile,
+  onShowAlert
 }: { 
   onImport: any; 
   onCopyExample: any; 
   onProcessData: (data: string) => void;
   onHandleFile: (file: File) => void;
+  onShowAlert: (msg: string) => void;
 }) {
   const [textInput, setTextInput] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -203,7 +264,7 @@ function HomeView({
       if (file.name.endsWith('.json') || file.name.endsWith('.txt')) {
         onHandleFile(file);
       } else {
-        alert('請上傳 .json 或 .txt 格式的檔案');
+        onShowAlert('請上傳 .json 或 .txt 格式的檔案');
       }
     }
   };
@@ -232,7 +293,7 @@ function HomeView({
         />
         <button 
           onClick={() => {
-            if (!textInput.trim()) return alert("請先輸入內容");
+            if (!textInput.trim()) return onShowAlert("請先輸入內容");
             onProcessData(textInput);
           }}
           className="bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-medium hover:bg-blue-200 transition shadow-sm w-full"
@@ -350,7 +411,7 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
   );
 }
 
-function ResultView({ record, onRetest }: { record: TestRecord, onRetest: (cards: Card[], title: string, isRoot?: boolean) => void }) {
+function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onRetest: (cards: Card[], title: string, isRoot?: boolean) => void, onShowAlert: (msg: string) => void }) {
   const total = record.originalCards.length;
   const correct = Object.values(record.results).filter(v => v).length;
   const incorrect = total - correct;
@@ -362,7 +423,7 @@ function ResultView({ record, onRetest }: { record: TestRecord, onRetest: (cards
 
   const exportJSON = (text: string) => {
     navigator.clipboard.writeText(text);
-    alert('已匯出並複製到剪貼簿！');
+    onShowAlert('已匯出並複製到剪貼簿！');
   };
 
   const getMistakesCards = () => record.originalCards.filter((_, i) => !record.results[i]);
@@ -438,7 +499,7 @@ function ResultView({ record, onRetest }: { record: TestRecord, onRetest: (cards
   );
 }
 
-function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore }: any) {
+function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onShowAlert }: any) {
   const [history, setHistory] = useState<TestRecord[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
 
@@ -463,7 +524,7 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore }: any) {
             <div className="flex gap-2">
               <button onClick={() => onStartQuiz(dk)} className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200"><Play size={16}/></button>
               <button onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(dk, null, 2)); alert('已複製牌組');
+                navigator.clipboard.writeText(JSON.stringify(dk, null, 2)); onShowAlert('已複製牌組');
               }} className="p-2 bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200"><Download size={16}/></button>
             </div>
           </div>
@@ -491,10 +552,10 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore }: any) {
                <button onClick={() => {
                  const mistakes = record.originalCards.filter((_, i) => !record.results[i]);
                  if(mistakes.length > 0) onStartQuiz({ title: record.sourceDeckTitle + ' 錯題', cards: mistakes });
-                 else alert('本次測驗全對，無錯題可考！');
+                 else onShowAlert('本次測驗全對，無錯題可考！');
                }} className="text-xs font-semibold px-2 py-1 bg-red-50 text-red-600 rounded">考錯題</button>
                <button onClick={() => {
-                 navigator.clipboard.writeText(JSON.stringify({ title: record.sourceDeckTitle, cards: record.originalCards }, null, 2)); alert('已複製測驗牌組');
+                 navigator.clipboard.writeText(JSON.stringify({ title: record.sourceDeckTitle, cards: record.originalCards }, null, 2)); onShowAlert('已複製測驗牌組');
                }} className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded ml-auto flex items-center gap-1"><Download size={12}/>匯出</button>
             </div>
           </div>
