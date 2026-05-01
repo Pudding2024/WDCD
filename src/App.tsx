@@ -47,34 +47,45 @@ export default function App() {
   const [quizState, setQuizState] = useState<{ currentIndex: number; answers: { [index: number]: boolean } }>({ currentIndex: 0, answers: {} });
 
   // Home View
+  const processImportData = (jsonString: string) => {
+    try {
+      const json = JSON.parse(jsonString);
+      if (json.title && Array.isArray(json.cards)) {
+        const decks = getDecks();
+        decks.push(json);
+        saveDecks(decks);
+        alert('匯入成功！');
+        setCurrentView('history');
+      } else {
+        alert('JSON 格式錯誤，必須包含 title 與 cards 陣列。');
+      }
+    } catch (err) {
+      alert('解析 JSON 錯誤！請確認格式是否正確。');
+    }
+  };
+
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      processImportData(event.target?.result as string);
+    };
+    reader.readAsText(file);
+  };
+
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (json.title && Array.isArray(json.cards)) {
-          const decks = getDecks();
-          decks.push(json);
-          saveDecks(decks);
-          alert('匯入成功！');
-          setCurrentView('history');
-        } else alert('JSON 格式錯誤，必須包含 title 與 cards 陣列。');
-      } catch (err) {
-        alert('解析 JSON 錯誤！');
-      }
-    };
-    reader.readAsText(file);
+    handleImportFile(file);
     e.target.value = '';
   };
 
   const copyExample = () => {
     const example = {
-      title: "TOEIC 必備單字",
+      title: "Unit 20 必備單字與衍生詞組集",
       cards: [
-        { front: "Apple", back: "蘋果", note: "常見水果" },
-        { front: "Banana", back: "香蕉" }
+        { "front": "admire", "back": "欣賞；讚賞；佩服 (v.)" },
+        { "front": "budget airline", "back": "廉價航空" },
+        { "front": "automobile", "back": "汽車 (n.)", "note": "The automobile industry has seen significant growth in the past decade.（汽車工業在過去十年中有了顯著的成長）" }
       ]
     };
     navigator.clipboard.writeText(JSON.stringify(example, null, 2));
@@ -137,7 +148,7 @@ export default function App() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 relative bg-gray-50">
-        {currentView === 'home' && <HomeView onImport={handleImport} onCopyExample={copyExample} />}
+        {currentView === 'home' && <HomeView onImport={handleImport} onCopyExample={copyExample} onProcessData={processImportData} onHandleFile={handleImportFile} />}
         {currentView === 'quiz' && activeDeck && <QuizView deck={activeDeck} state={quizState} setState={setQuizState} onFinish={finishQuiz} />}
         {currentView === 'result' && activeTestRecord && <ResultView record={activeTestRecord} onRetest={(cards, title) => startQuiz({ title, cards })} />}
         {currentView === 'history' && <HistoryView onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} />}
@@ -148,24 +159,85 @@ export default function App() {
 
 // --- Views ---
 
-function HomeView({ onImport, onCopyExample }: { onImport: any; onCopyExample: any }) {
+function HomeView({ 
+  onImport, 
+  onCopyExample, 
+  onProcessData, 
+  onHandleFile 
+}: { 
+  onImport: any; 
+  onCopyExample: any; 
+  onProcessData: (data: string) => void;
+  onHandleFile: (file: File) => void;
+}) {
+  const [textInput, setTextInput] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      if (file.name.endsWith('.json') || file.name.endsWith('.txt')) {
+        onHandleFile(file);
+      } else {
+        alert('請上傳 .json 或 .txt 格式的檔案');
+      }
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-6 px-4 text-center">
-      <div className="bg-blue-100 p-6 rounded-full text-blue-600 mb-2">
-        <Upload size={48} />
+    <div 
+      className={`flex flex-col items-center justify-center h-full gap-4 px-4 text-center transition-colors duration-200 ${isDragging ? 'bg-blue-50 border-2 border-dashed border-blue-400 rounded-xl' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className="bg-blue-100 p-4 rounded-full text-blue-600 mb-2">
+        <Upload size={36} />
       </div>
       <div>
-        <h2 className="text-2xl font-bold mb-2">匯入您的單字卡</h2>
-        <p className="text-gray-500 text-sm">支援 JSON 格式，輕鬆建立您的抽認卡牌組</p>
+        <h2 className="text-2xl font-bold mb-1">匯入您的單字卡</h2>
+        <p className="text-gray-500 text-sm">支援 .json / .txt 檔案拖放、點擊上傳，或直接貼上 JSON 內容</p>
       </div>
       
-      <label className="bg-blue-600 text-white px-8 py-3 rounded-xl font-medium cursor-pointer hover:bg-blue-700 transition shadow-lg w-full max-w-xs">
-        選擇 JSON 檔案
-        <input type="file" accept=".json" className="hidden" onChange={onImport} />
+      <div className="w-full max-w-sm flex flex-col gap-3">
+        <textarea
+          className="w-full h-32 p-3 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          placeholder="在此貼上或輸入 JSON 文字..."
+          value={textInput}
+          onChange={(e) => setTextInput(e.target.value)}
+        />
+        <button 
+          onClick={() => {
+            if (!textInput.trim()) return alert("請先輸入內容");
+            onProcessData(textInput);
+          }}
+          className="bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-medium hover:bg-blue-200 transition shadow-sm w-full"
+        >
+          提交文字內容
+        </button>
+      </div>
+
+      <div className="mt-2 text-gray-400 text-sm">或</div>
+
+      <label className="bg-blue-600 text-white px-8 py-3 rounded-xl font-medium cursor-pointer hover:bg-blue-700 transition shadow-lg w-full max-w-sm">
+        點擊選擇檔案上傳
+        <input type="file" accept=".json,.txt" className="hidden" onChange={onImport} />
       </label>
 
-      <button onClick={onCopyExample} className="text-blue-600 flex items-center justify-center gap-2 mt-4 hover:underline">
-        <Copy size={16} /> 一鍵複製 JSON 範例格式
+      <button onClick={onCopyExample} className="text-blue-600 flex items-center justify-center gap-2 mt-2 hover:underline text-sm">
+        <Copy size={16} /> 複製參考格式
       </button>
     </div>
   );
