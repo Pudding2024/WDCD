@@ -13,6 +13,8 @@ interface Card {
 interface Deck {
   title: string;
   cards: Card[];
+  rootTitle?: string;
+  rootCards?: Card[];
 }
 
 interface TestRecord {
@@ -21,6 +23,8 @@ interface TestRecord {
   timestamp: string; // YYYY-MM-DD HH:mm:ss
   originalCards: Card[]; // cards used in this specific test
   results: { [cardIndex: number]: boolean }; // true = know, false = don't know
+  rootTitle?: string;
+  rootCards?: Card[];
 }
 
 // --- DB/LocalStorage ---
@@ -106,6 +110,8 @@ export default function App() {
       timestamp: getTimestamp(),
       originalCards: activeDeck.cards,
       results: finalAnswers,
+      rootTitle: activeDeck.rootTitle || activeDeck.title,
+      rootCards: activeDeck.rootCards || activeDeck.cards,
     };
     const history = getHistory();
     history.push(record);
@@ -150,7 +156,13 @@ export default function App() {
       <div className="flex-1 overflow-y-auto p-4 relative bg-gray-50">
         {currentView === 'home' && <HomeView onImport={handleImport} onCopyExample={copyExample} onProcessData={processImportData} onHandleFile={handleImportFile} />}
         {currentView === 'quiz' && activeDeck && <QuizView deck={activeDeck} state={quizState} setState={setQuizState} onFinish={finishQuiz} />}
-        {currentView === 'result' && activeTestRecord && <ResultView record={activeTestRecord} onRetest={(cards, title) => startQuiz({ title, cards })} />}
+        {currentView === 'result' && activeTestRecord && <ResultView record={activeTestRecord} onRetest={(cards, title, isRoot) => {
+          if (isRoot) {
+            startQuiz({ title, cards });
+          } else {
+            startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
+          }
+        }} />}
         {currentView === 'history' && <HistoryView onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} />}
       </div>
     </div>
@@ -338,7 +350,7 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
   );
 }
 
-function ResultView({ record, onRetest }: { record: TestRecord, onRetest: (cards: Card[], title: string) => void }) {
+function ResultView({ record, onRetest }: { record: TestRecord, onRetest: (cards: Card[], title: string, isRoot?: boolean) => void }) {
   const total = record.originalCards.length;
   const correct = Object.values(record.results).filter(v => v).length;
   const incorrect = total - correct;
@@ -375,12 +387,17 @@ function ResultView({ record, onRetest }: { record: TestRecord, onRetest: (cards
       </div>
 
       <div className="mt-8 flex flex-col gap-3">
-        <button className="bg-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-md w-full" onClick={() => onRetest(record.originalCards, record.sourceDeckTitle)}>
+        <button className="bg-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-md w-full" onClick={() => onRetest(record.rootCards || record.originalCards, record.rootTitle || record.sourceDeckTitle, true)}>
           再考一次 (完整)
         </button>
         {incorrect > 0 && (
           <button className="bg-rose-500 text-white font-bold py-3 px-4 rounded-xl shadow-md w-full" onClick={() => onRetest(getMistakesCards(), record.sourceDeckTitle + ' (錯題)')}>
             考錯題 ({incorrect})
+          </button>
+        )}
+        {record.rootCards && record.rootCards.length !== record.originalCards.length && (
+          <button className="bg-indigo-600 text-white font-bold py-3 px-4 rounded-xl shadow-md w-full" onClick={() => onRetest(record.originalCards, record.sourceDeckTitle)}>
+            再考一次 (本次)
           </button>
         )}
       </div>
