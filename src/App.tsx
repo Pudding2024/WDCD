@@ -53,15 +53,15 @@ export default function App() {
   const [historyKey, setHistoryKey] = useState(0);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void, submitText?: string} | null>(null);
+  const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void, submitText?: string, inputType?: 'text' | 'textarea', isDanger?: boolean} | null>(null);
 
   const showAlert = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const showPrompt = (title: string, onSubmit: (val: string) => void, submitText?: string) => {
-    setPromptConfig({ isOpen: true, title, onSubmit, submitText });
+  const showPrompt = (title: string, onSubmit: (val: string) => void, options?: { submitText?: string, inputType?: 'text' | 'textarea', isDanger?: boolean }) => {
+    setPromptConfig({ isOpen: true, title, onSubmit, ...options });
   };
 
   // Home View
@@ -167,7 +167,7 @@ export default function App() {
       } else {
         showAlert('輸入錯誤，未清空紀錄');
       }
-    }, '確認刪除歷史紀錄');
+    }, { submitText: '確認刪除歷史紀錄', inputType: 'text', isDanger: true });
   };
 
   const handleClearDecks = () => {
@@ -179,7 +179,7 @@ export default function App() {
       } else {
         showAlert('輸入錯誤，未清空排組');
       }
-    }, '確認刪除匯入的排組');
+    }, { submitText: '確認刪除匯入的排組', inputType: 'text', isDanger: true });
   };
 
   return (
@@ -239,15 +239,26 @@ export default function App() {
                   promptConfig.onSubmit(inputVal);
                 }
               }}>
-                <textarea 
-                  name="promptInput"
-                  className="w-full h-32 p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none mb-4 resize-none text-sm"
-                  placeholder="請在此輸入..."
-                  autoFocus
-                />
+                {promptConfig.inputType === 'text' ? (
+                  <input 
+                    type="text"
+                    name="promptInput"
+                    className={`w-full p-3 border rounded-xl focus:ring-2 focus:outline-none mb-4 text-sm ${promptConfig.isDanger ? 'focus:ring-red-500 border-red-300' : 'focus:ring-blue-500'}`}
+                    placeholder="請在此輸入..."
+                    autoFocus
+                    autoComplete="off"
+                  />
+                ) : (
+                  <textarea 
+                    name="promptInput"
+                    className={`w-full h-32 p-3 border rounded-xl focus:ring-2 focus:outline-none mb-4 resize-none text-sm ${promptConfig.isDanger ? 'focus:ring-red-500 border-red-300' : 'focus:ring-blue-500'}`}
+                    placeholder="請在此輸入..."
+                    autoFocus
+                  />
+                )}
                 <div className="flex gap-3 justify-end">
                   <button type="button" onClick={() => setPromptConfig(null)} className="px-4 py-2 font-medium text-gray-500 hover:bg-gray-100 rounded-lg transition">取消</button>
-                  <button type="submit" className={`px-4 py-2 font-bold text-white rounded-lg shadow transition ${promptConfig.submitText === '確認刪除' ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{promptConfig.submitText || '確認'}</button>
+                  <button type="submit" className={`px-4 py-2 font-bold text-white rounded-lg shadow transition ${promptConfig.isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>{promptConfig.submitText || '確認'}</button>
                 </div>
               </form>
             </div>
