@@ -415,12 +415,18 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
 
       <div className="flex-1 relative flex items-center justify-center w-full">
         {/* Swipeable Card Area */}
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence mode="popLayout" custom={exitX}>
           <motion.div
             key={state.currentIndex}
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ x: exitX, opacity: 0, transition: { duration: 0.2 } }}
+            custom={exitX}
+            variants={{
+              initial: { scale: 0.9, opacity: 0, y: 20 },
+              animate: { scale: 1, opacity: 1, y: 0 },
+              exit: (x) => ({ x: x, opacity: 0, transition: { duration: 0.2 } })
+            }}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             className="w-full h-96 relative perspective-1000"
             drag="x"
