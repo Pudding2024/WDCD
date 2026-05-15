@@ -28,6 +28,8 @@ interface TestRecord {
   rootCards?: Card[];
 }
 
+type View = 'landing' | 'import' | 'quiz' | 'result' | 'history';
+
 // --- DB/LocalStorage ---
 const DB_KEY_DECKS = 'flashcards_decks';
 const DB_KEY_HISTORY = 'flashcards_history';
@@ -44,13 +46,30 @@ const getTimestamp = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 };
 
+const SWIPE_EDGE_PX = 24;
+const SWIPE_THRESHOLD_PX = 80;
+const SWIPE_MAX_PX = 140;
+
+const viewTransitionVariants = {
+  enter: (direction: number) => ({ x: direction > 0 ? 40 : -40, opacity: 0 }),
+  center: { x: 0, opacity: 1 },
+  exit: (direction: number) => ({ x: direction > 0 ? -40 : 40, opacity: 0 })
+};
+
 // --- App Component ---
 export default function App() {
-  const [currentView, setCurrentView] = useState<'home' | 'quiz' | 'result' | 'history'>('home');
+  const [currentView, setCurrentView] = useState<View>('landing');
   const [activeDeck, setActiveDeck] = useState<Deck | null>(null);
   const [activeTestRecord, setActiveTestRecord] = useState<TestRecord | null>(null);
   const [quizState, setQuizState] = useState<{ currentIndex: number; answers: { [index: number]: boolean } }>({ currentIndex: 0, answers: {} });
   const [historyKey, setHistoryKey] = useState(0);
+  const [viewHistory, setViewHistory] = useState<View[]>([]);
+  const [navDirection, setNavDirection] = useState<1 | -1>(1);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+
+  const swipeStartRef = React.useRef({ x: 0, y: 0, active: false });
+  const swipeOffsetRef = React.useRef(0);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [promptConfig, setPromptConfig] = useState<{isOpen: boolean, title: string, onSubmit: (val: string) => void, submitText?: string, inputType?: 'text' | 'textarea', isDanger?: boolean, requireInput?: boolean} | null>(null);
@@ -64,7 +83,28 @@ export default function App() {
     setPromptConfig({ isOpen: true, title, onSubmit, ...options });
   };
 
-  // Home View
+  const navigateTo = (view: View, options?: { replace?: boolean; direction?: 1 | -1 }) => {
+    setCurrentView((prev) => {
+      if (prev === view) return prev;
+      if (!options?.replace) setViewHistory((history) => [...history, prev]);
+      setNavDirection(options?.direction ?? 1);
+      return view;
+    });
+  };
+
+  const goBack = () => {
+    setViewHistory((history) => {
+      if (history.length === 0) return history;
+      const previous = history[history.length - 1];
+      setNavDirection(-1);
+      setCurrentView(previous);
+      return history.slice(0, -1);
+    });
+  };
+
+  const canGoBack = viewHistory.length > 0;
+
+  // Import View
   const processImportData = (jsonString: string) => {
     try {
       const json = JSON.parse(jsonString);
@@ -74,7 +114,7 @@ export default function App() {
         decks.push(json);
         saveDecks(decks);
         showAlert('匯入成功！');
-        setCurrentView('history');
+        navigateTo('history');
       } else {
         showAlert('JSON 格式錯誤，必須包含 title 與 cards 陣列。');
       }
@@ -114,7 +154,7 @@ export default function App() {
   const startQuiz = (deck: Deck) => {
     setActiveDeck(deck);
     setQuizState({ currentIndex: 0, answers: {} });
-    setCurrentView('quiz');
+    navigateTo('quiz');
   };
 
   const finishQuiz = (finalAnswers: { [index: number]: boolean }) => {
@@ -132,7 +172,7 @@ export default function App() {
     history.push(record);
     saveHistory(history);
     setActiveTestRecord(record);
-    setCurrentView('result');
+    navigateTo('result');
   };
 
   const handleGlobalBackup = () => {
@@ -150,7 +190,7 @@ export default function App() {
           saveHistory(data.history);
           showAlert('還原成功！');
           setHistoryKey((prev: number) => prev + 1);
-          setCurrentView('history'); // refresh
+          navigateTo('history'); // refresh
         } else showAlert('格式不正確！');
       } catch {
         showAlert('解析錯誤！');
@@ -182,28 +222,107 @@ export default function App() {
     }, { submitText: '確認刪除匯入的排組', inputType: 'text', isDanger: true });
   };
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!canGoBack) return;
+    const touch = e.touches[0];
+    if (touch.clientX > SWIPE_EDGE_PX) return;
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY, active: true };
+    swipeOffsetRef.current = 0;
+    setSwipeOffset(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!swipeStartRef.current.active) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - swipeStartRef.current.x;
+    const deltaY = touch.clientY - swipeStartRef.current.y;
+    if (deltaX < 0) return;
+    if (Math.abs(deltaX) < Math.abs(deltaY)) return;
+    e.preventDefault();
+    const nextOffset = Math.min(deltaX, SWIPE_MAX_PX);
+    if (!isSwiping) setIsSwiping(true);
+    swipeOffsetRef.current = nextOffset;
+    setSwipeOffset(nextOffset);
+  };
+
+  const handleTouchEnd = () => {
+    if (!swipeStartRef.current.active) return;
+    const offset = swipeOffsetRef.current;
+    swipeStartRef.current.active = false;
+    swipeOffsetRef.current = 0;
+    setIsSwiping(false);
+    setSwipeOffset(0);
+    if (offset > SWIPE_THRESHOLD_PX) goBack();
+  };
+
   return (
     <div className="max-w-md mx-auto h-full flex flex-col bg-white shadow-xl relative overflow-hidden">
       {/* Navbar */}
       <div className="flex items-center justify-between p-4 border-b bg-white z-10 shadow-sm sticky top-0">
         <h1 className="font-bold text-xl text-blue-600 truncate">閃卡測驗平台</h1>
         <div className="flex gap-2 text-gray-600">
-          <button onClick={() => setCurrentView('home')} className="p-2 hover:bg-gray-100 rounded-full"><HomeIcon size={20}/></button>
-          <button onClick={() => setCurrentView('history')} className="p-2 hover:bg-gray-100 rounded-full"><HistoryIcon size={20}/></button>
+          <button onClick={() => navigateTo('landing')} className="p-2 hover:bg-gray-100 rounded-full"><HomeIcon size={20}/></button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 relative bg-gray-50">
-        {currentView === 'home' && <HomeView onImport={handleImport} onCopyExample={copyExample} onProcessData={processImportData} onHandleFile={handleImportFile} onShowAlert={showAlert} />}
-        {currentView === 'quiz' && activeDeck && <QuizView deck={activeDeck} state={quizState} setState={setQuizState} onFinish={finishQuiz} />}
-        {currentView === 'result' && activeTestRecord && <ResultView record={activeTestRecord} onRetest={(cards, title, isRoot) => {
-          if (isRoot) {
-            startQuiz({ title, cards });
-          } else {
-            startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
-          }
-        }} onShowAlert={showAlert} />}
-        {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} onShowPrompt={showPrompt} onViewRecord={(record: any) => { setActiveTestRecord(record); setCurrentView('result'); }} />}
+      <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
+        <button
+          onClick={goBack}
+          disabled={!canGoBack}
+          className="flex items-center gap-1 text-sm font-medium text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:pointer-events-none"
+        >
+          <ChevronLeft size={18} /> 返回
+        </button>
+        {currentView !== 'history' && (
+          <button
+            onClick={() => navigateTo('history')}
+            className="flex items-center gap-1 text-sm font-medium text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100"
+          >
+            <HistoryIcon size={18} /> 歷史紀錄
+          </button>
+        )}
+      </div>
+
+      <div
+        className="flex-1 overflow-y-auto p-4 relative bg-gray-50"
+        style={{ touchAction: 'pan-y' }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        <div
+          className="h-full"
+          style={{
+            transform: `translateX(${swipeOffset}px)`,
+            transition: isSwiping ? 'none' : 'transform 200ms ease'
+          }}
+        >
+          <AnimatePresence mode="wait" custom={navDirection}>
+            <motion.div
+              key={currentView}
+              custom={navDirection}
+              variants={viewTransitionVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+              className="h-full"
+            >
+              {currentView === 'landing' && <LandingView onSelectWordCards={() => navigateTo('import')} />}
+              {currentView === 'import' && <ImportView onImport={handleImport} onCopyExample={copyExample} onProcessData={processImportData} onHandleFile={handleImportFile} onShowAlert={showAlert} />}
+              {currentView === 'quiz' && activeDeck && <QuizView deck={activeDeck} state={quizState} setState={setQuizState} onFinish={finishQuiz} />}
+              {currentView === 'result' && activeTestRecord && <ResultView record={activeTestRecord} onRetest={(cards, title, isRoot) => {
+                if (isRoot) {
+                  startQuiz({ title, cards });
+                } else {
+                  startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
+                }
+              }} onShowAlert={showAlert} />}
+              {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} onShowPrompt={showPrompt} onViewRecord={(record: any) => { setActiveTestRecord(record); navigateTo('result'); }} />}
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Custom Toast */}
@@ -279,7 +398,65 @@ export default function App() {
 
 // --- Views ---
 
-function HomeView({ 
+function CardStackIcon({
+  size = 'md',
+  className = '',
+  frontClassName = 'bg-white border-slate-200',
+  backClassName = 'bg-slate-50 border-slate-200'
+}: {
+  size?: 'lg' | 'md' | 'sm';
+  className?: string;
+  frontClassName?: string;
+  backClassName?: string;
+}) {
+  const sizes = {
+    lg: { wrapper: 'w-16 h-20', card: 'w-12 h-16', offset: 'translate-x-3 translate-y-2' },
+    md: { wrapper: 'w-12 h-16', card: 'w-10 h-14', offset: 'translate-x-2 translate-y-2' },
+    sm: { wrapper: 'w-9 h-12', card: 'w-7 h-10', offset: 'translate-x-1 translate-y-1' }
+  };
+  const sizeClasses = sizes[size];
+
+  return (
+    <div className={`relative ${sizeClasses.wrapper} ${className}`}>
+      <div
+        className={`absolute ${sizeClasses.card} ${sizeClasses.offset} rounded-lg border shadow-sm ${backClassName}`}
+      />
+      <div
+        className={`relative ${sizeClasses.card} rounded-lg border shadow ${frontClassName}`}
+      />
+    </div>
+  );
+}
+
+function LandingView({ onSelectWordCards }: { onSelectWordCards: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-4 px-4 text-center">
+      <div className="bg-blue-100 p-4 rounded-full text-blue-600 mb-2">
+        <CardStackIcon size="lg" />
+      </div>
+      <div>
+        <h2 className="text-2xl font-bold mb-1">閃卡測驗平台</h2>
+        <p className="text-gray-500 text-sm">選擇下面的其中一個測驗方式</p>
+      </div>
+
+      <button
+        onClick={onSelectWordCards}
+        className="mt-2 w-full max-w-sm bg-orange-100 text-orange-800 rounded-full px-4 py-3 flex items-center gap-3 shadow-sm hover:bg-orange-200 transition"
+      >
+        <div className="w-11 h-11 rounded-full bg-orange-200 flex items-center justify-center">
+          <CardStackIcon
+            size="sm"
+            frontClassName="bg-white border-orange-200"
+            backClassName="bg-orange-50 border-orange-200"
+          />
+        </div>
+        <span className="font-bold">單字卡</span>
+      </button>
+    </div>
+  );
+}
+
+function ImportView({ 
   onImport, 
   onCopyExample, 
   onProcessData, 
