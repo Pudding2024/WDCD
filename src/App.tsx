@@ -367,12 +367,13 @@ function HomeView({
 
 function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any, setState: any, onFinish: (ans: any) => void }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  const [exitX, setExitX] = useState(0);
   const card = deck.cards[state.currentIndex];
   const isFinished = state.currentIndex >= deck.cards.length;
 
-  useEffect(() => { setIsFlipped(false); }, [state.currentIndex]);
-
   const handleAnswer = (know: boolean) => {
+    setExitX(know ? 300 : -300);
+    setIsFlipped(false);
     const newAnswers = { ...state.answers, [state.currentIndex]: know };
     setState({ currentIndex: state.currentIndex + 1, answers: newAnswers });
     if (state.currentIndex + 1 >= deck.cards.length) finish(newAnswers);
@@ -384,11 +385,15 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
 
   const prevCard = () => {
     if (state.currentIndex > 0) {
+      setExitX(300);
+      setIsFlipped(false);
       setState({ ...state, currentIndex: state.currentIndex - 1 });
     }
   };
   const nextCard = () => {
     if (state.currentIndex < deck.cards.length - 1) {
+      setExitX(-300);
+      setIsFlipped(false);
       setState({ ...state, currentIndex: state.currentIndex + 1 });
     }
   };
@@ -410,33 +415,40 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
 
       <div className="flex-1 relative flex items-center justify-center w-full">
         {/* Swipeable Card Area */}
-        <motion.div
-          className="w-full h-96 relative perspective-1000"
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          onDragEnd={(_, { offset }) => {
-            const swipeLeft = offset.x < -50;
-            const swipeRight = offset.x > 50;
-            if (swipeRight) handleAnswer(true);
-            else if (swipeLeft) handleAnswer(false);
-          }}
-        >
+        <AnimatePresence mode="popLayout">
           <motion.div
-            className="w-full h-full cursor-pointer preserve-3d transition-transform duration-500 ease-in-out relative"
-            style={{ transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
-            onClick={() => setIsFlipped(!isFlipped)}
+            key={state.currentIndex}
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ x: exitX, opacity: 0, transition: { duration: 0.2 } }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="w-full h-96 relative perspective-1000"
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragEnd={(_, { offset }) => {
+              const swipeLeft = offset.x < -50;
+              const swipeRight = offset.x > 50;
+              if (swipeRight) handleAnswer(true);
+              else if (swipeLeft) handleAnswer(false);
+            }}
           >
-            {/* Front */}
-            <div className="absolute w-full h-full bg-white rounded-2xl shadow-lg border-2 border-slate-100 p-6 flex items-center justify-center backface-hidden">
-              <h2 className="text-3xl font-bold text-center text-slate-800 break-words">{card.front}</h2>
-              <div className="absolute top-4 right-4 animate-pulse opacity-50"><RotateCcw size={20} /></div>
-            </div>
-            {/* Back */}
-            <div className="absolute w-full h-full bg-indigo-50 rounded-2xl shadow-lg border-2 border-indigo-100 p-6 flex flex-col items-center justify-center backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
-              <h2 className="text-3xl font-bold text-center text-indigo-900 break-words">{card.back}</h2>
-            </div>
+            <motion.div
+              className="w-full h-full cursor-pointer preserve-3d transition-transform duration-500 ease-in-out relative"
+              style={{ transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+              onClick={() => setIsFlipped(!isFlipped)}
+            >
+              {/* Front */}
+              <div className="absolute w-full h-full bg-white rounded-2xl shadow-lg border-2 border-slate-100 p-6 flex items-center justify-center backface-hidden">
+                <h2 className="text-3xl font-bold text-center text-slate-800 break-words">{card.front}</h2>
+                <div className="absolute top-4 right-4 animate-pulse opacity-50"><RotateCcw size={20} /></div>
+              </div>
+              {/* Back */}
+              <div className="absolute w-full h-full bg-indigo-50 rounded-2xl shadow-lg border-2 border-indigo-100 p-6 flex flex-col items-center justify-center backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
+                <h2 className="text-3xl font-bold text-center text-indigo-900 break-words">{card.back}</h2>
+              </div>
+            </motion.div>
           </motion.div>
-        </motion.div>
+        </AnimatePresence>
       </div>
 
       <div className="mt-8 flex gap-4 w-full">
