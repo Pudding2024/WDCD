@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { Download, Upload, Copy, RotateCcw, Play, Check, X, ChevronLeft, ChevronRight, List, Trash2, History as HistoryIcon, Home as HomeIcon } from 'lucide-react';
+import { Download, Upload, Copy, RotateCcw, Play, Check, X, ChevronLeft, ChevronRight, List, Trash2, History as HistoryIcon, Home as HomeIcon, Layers, BookOpen } from 'lucide-react';
 
 // --- Types ---
 interface Card {
@@ -398,41 +398,11 @@ export default function App() {
 
 // --- Views ---
 
-function CardStackIcon({
-  size = 'md',
-  className = '',
-  frontClassName = 'bg-white border-slate-200',
-  backClassName = 'bg-slate-50 border-slate-200'
-}: {
-  size?: 'lg' | 'md' | 'sm';
-  className?: string;
-  frontClassName?: string;
-  backClassName?: string;
-}) {
-  const sizes = {
-    lg: { wrapper: 'w-16 h-20', card: 'w-12 h-16', offset: 'translate-x-3 translate-y-2' },
-    md: { wrapper: 'w-12 h-16', card: 'w-10 h-14', offset: 'translate-x-2 translate-y-2' },
-    sm: { wrapper: 'w-9 h-12', card: 'w-7 h-10', offset: 'translate-x-1 translate-y-1' }
-  };
-  const sizeClasses = sizes[size];
-
-  return (
-    <div className={`relative ${sizeClasses.wrapper} ${className}`}>
-      <div
-        className={`absolute ${sizeClasses.card} ${sizeClasses.offset} rounded-lg border shadow-sm ${backClassName}`}
-      />
-      <div
-        className={`relative ${sizeClasses.card} rounded-lg border shadow ${frontClassName}`}
-      />
-    </div>
-  );
-}
-
 function LandingView({ onSelectWordCards }: { onSelectWordCards: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 px-4 text-center">
       <div className="bg-blue-100 p-4 rounded-full text-blue-600 mb-2">
-        <CardStackIcon size="lg" />
+        <Layers size={36} />
       </div>
       <div>
         <h2 className="text-2xl font-bold mb-1">閃卡測驗平台</h2>
@@ -443,12 +413,8 @@ function LandingView({ onSelectWordCards }: { onSelectWordCards: () => void }) {
         onClick={onSelectWordCards}
         className="mt-2 w-full max-w-sm bg-orange-100 text-orange-800 rounded-full px-4 py-3 flex items-center gap-3 shadow-sm hover:bg-orange-200 transition"
       >
-        <div className="w-11 h-11 rounded-full bg-orange-200 flex items-center justify-center">
-          <CardStackIcon
-            size="sm"
-            frontClassName="bg-white border-orange-200"
-            backClassName="bg-orange-50 border-orange-200"
-          />
+        <div className="w-11 h-11 rounded-full bg-white text-orange-600 flex items-center justify-center shadow-sm">
+          <BookOpen size={20} />
         </div>
         <span className="font-bold">單字卡</span>
       </button>
