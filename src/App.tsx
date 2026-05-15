@@ -487,6 +487,9 @@ function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onR
     { name: '會', value: correct, color: '#22c55e' },
     { name: '不會', value: incorrect, color: '#ef4444' }
   ];
+  const chartData = data.filter((slice) => slice.value > 0);
+  const hasSingleSlice = chartData.length <= 1;
+  const gapColor = '#f9fafb';
 
   const exportJSON = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -502,8 +505,17 @@ function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onR
       <div className="h-48 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-              {data.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={50}
+              outerRadius={80}
+              dataKey="value"
+              stroke={hasSingleSlice ? 'none' : gapColor}
+              strokeWidth={hasSingleSlice ? 0 : 4}
+            >
+              {chartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
             </Pie>
             <RechartsTooltip />
           </PieChart>
