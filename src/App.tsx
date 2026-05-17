@@ -738,7 +738,7 @@ function QuizView({
                 <h2 className="text-3xl font-bold text-center text-slate-800 break-words">{card.front}</h2>
                 <div
                   ref={menuRef}
-                  className="absolute top-4 right-4 z-20"
+                  className={`absolute top-4 right-4 z-20 transition-opacity duration-300 ${isFlipped ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
