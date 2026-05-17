@@ -28,19 +28,11 @@ interface TestRecord {
   rootCards?: Card[];
 }
 
-interface IncompleteQuiz {
-  id: string;
-  timestamp: string;
-  deck: Deck;
-  state: { currentIndex: number; answers: { [index: number]: boolean } };
-}
-
 type View = 'landing' | 'import' | 'quiz' | 'result' | 'history';
 
 // --- DB/LocalStorage ---
 const DB_KEY_DECKS = 'flashcards_decks';
 const DB_KEY_HISTORY = 'flashcards_history';
-const DB_KEY_INCOMPLETE = 'flashcards_incomplete';
 
 const getDecks = (): Deck[] => JSON.parse(localStorage.getItem(DB_KEY_DECKS) || '[]');
 const saveDecks = (decks: Deck[]) => localStorage.setItem(DB_KEY_DECKS, JSON.stringify(decks));
@@ -83,45 +75,6 @@ export default function App() {
   const [navDirection, setNavDirection] = useState<1 | -1>(1);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
-  const [pendingQuizzes, setPendingQuizzes] = useState<IncompleteQuiz[]>([]);
-  const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
-  const [showPendingPrompt, setShowPendingPrompt] = useState(true);
-  const [expandedPending, setExpandedPending] = useState(false);
-  
-  const [toastExitX, setToastExitX] = useState(0);
-  const [toastExitY, setToastExitY] = useState(-20);
-
-  useEffect(() => {
-    setPendingQuizzes(getIncompleteQuizzes());
-  }, [historyKey]);
-
-  useEffect(() => {
-    if (currentView === 'quiz' && activeDeck && activeQuizId) {
-      const quizzes = getIncompleteQuizzes();
-      const existingIdx = quizzes.findIndex(q => q.id === activeQuizId);
-      const newQuiz: IncompleteQuiz = {
-        id: activeQuizId,
-        timestamp: getTimestamp(),
-        deck: activeDeck,
-        state: quizState
-      };
-      if (existingIdx >= 0) {
-        quizzes[existingIdx] = newQuiz;
-      } else {
-        quizzes.push(newQuiz);
-      }
-      saveIncompleteQuizzes(quizzes);
-      setPendingQuizzes(quizzes);
-    }
-  }, [activeDeck, quizState, currentView, activeQuizId]);
-
-  const removePendingQuiz = (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const newQuizzes = pendingQuizzes.filter(q => q.id !== id);
-    saveIncompleteQuizzes(newQuizzes);
-    setPendingQuizzes(newQuizzes);
-    if (newQuizzes.length === 0) setExpandedPending(false);
-  };
 
   const swipeStartRef = React.useRef({ x: 0, y: 0, active: false });
   const swipeOffsetRef = React.useRef(0);
@@ -232,15 +185,6 @@ export default function App() {
     const history = getHistory();
     history.push(record);
     saveHistory(history);
-    
-    if (activeQuizId) {
-      const quizzes = getIncompleteQuizzes().filter(q => q.id !== activeQuizId);
-      saveIncompleteQuizzes(quizzes);
-      setPendingQuizzes(quizzes);
-      setActiveQuizId(null);
-    }
-    setHistoryKey(prev => prev + 1);
-    
     setActiveTestRecord(record);
     navigateTo('result', { replace: true });
   };
@@ -394,93 +338,6 @@ export default function App() {
           </AnimatePresence>
         </div>
       </div>
-
-      {/* Pending Quiz Prompt */}
-      <AnimatePresence>
-        {pendingQuizzes.length > 0 && showPendingPrompt && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20, x: '-50%' }} 
-            animate={{ opacity: 1, y: 0, x: '-50%' }} 
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="absolute top-16 left-1/2 z-40 w-full max-w-md px-4 flex flex-col items-center pointer-events-none"
-          >
-            {pendingQuizzes.length === 1 ? (
-              <div className="bg-white border border-gray-100 shadow-xl rounded-xl p-4 flex items-center justify-between w-full pointer-events-auto relative">
-                <button onClick={() => setShowPendingPrompt(false)} className="absolute -top-2 -right-2 bg-gray-200 hover:bg-gray-300 rounded-full p-1 shadow transition text-gray-500 hover:text-gray-700">
-                  <X size={14}/>
-                </button>
-                <div className="flex flex-col flex-1 mr-4 overflow-hidden">
-                  <div className="font-bold text-gray-800 text-base mb-1">您有尚未做完的測驗</div>
-                  <div className="text-sm text-gray-600 truncate">{pendingQuizzes[0].deck.title}</div>
-                  <div className="text-xs text-gray-400 mt-1">{pendingQuizzes[0].state.currentIndex + 1} / {pendingQuizzes[0].deck.cards.length} • {pendingQuizzes[0].timestamp}</div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button 
-                    onClick={() => startQuiz(pendingQuizzes[0].deck, pendingQuizzes[0].id, pendingQuizzes[0].state)} 
-                    className="p-2.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
-                  >
-                    <Play size={20}/>
-                  </button>
-                  <button 
-                    onClick={() => removePendingQuiz(pendingQuizzes[0].id)} 
-                    className="p-2.5 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
-                  >
-                    <Trash2 size={20}/>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full pointer-events-auto flex flex-col items-center relative">
-                <button onClick={() => setShowPendingPrompt(false)} className="absolute -top-2 -right-0 bg-gray-200 hover:bg-gray-300 rounded-full p-1 shadow z-20 transition text-gray-500 hover:text-gray-700">
-                  <X size={14}/>
-                </button>
-                {/* Mother Notification */}
-                <div 
-                  className="bg-white border border-gray-100 shadow-xl rounded-xl p-4 flex items-center justify-between w-full relative z-10 cursor-pointer" 
-                  onClick={() => setExpandedPending(!expandedPending)}
-                >
-                  <div className="flex flex-col flex-1 mr-4 overflow-hidden">
-                    <div className="font-bold text-gray-800 text-base mb-1">您有多個尚未做完的測驗</div>
-                    <div className="text-sm text-gray-500 truncate">共 {pendingQuizzes.length} 個測驗進行中</div>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button className={`p-2.5 rounded-full transition ${expandedPending ? 'bg-green-600 text-white' : 'bg-green-100 text-green-600 hover:bg-green-200'}`}>
-                      <List size={20}/>
-                    </button>
-                  </div>
-                </div>
-                {/* Child Notifications (List) */}
-                <AnimatePresence>
-                  {expandedPending && (
-                    <motion.div 
-                      key="child-notifications"
-                      initial={{ opacity: 0, height: 0, scale: 0.95, y: -20 }} 
-                      animate={{ opacity: 1, height: 'auto', scale: 1, y: 0 }} 
-                      exit={{ opacity: 0, height: 0, scale: 0.95, y: -20, transition: { duration: 0.2 } }}
-                      className="w-full relative z-0 origin-top overflow-hidden"
-                    >
-                      <div className="w-[95%] mx-auto max-h-[60vh] overflow-y-auto pt-4 pb-2 px-1 flex flex-col gap-2 -mt-2" style={{ maskImage: 'linear-gradient(to bottom, transparent, black 16px)', WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 16px)' }}>
-                        {[...pendingQuizzes].sort((a,b)=>b.timestamp.localeCompare(a.timestamp)).map((q) => (
-                          <div key={q.id} className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-3 flex items-center justify-between w-full relative">
-                            <div className="flex flex-col flex-1 mr-2 overflow-hidden">
-                              <div className="font-bold text-gray-800 text-sm truncate">{q.deck.title}</div>
-                              <div className="text-xs text-gray-500 mt-1">{q.state.currentIndex + 1} / {q.deck.cards.length} • {q.timestamp}</div>
-                            </div>
-                            <div className="flex gap-1 shrink-0">
-                              <button onClick={(e) => { e.stopPropagation(); setShowPendingPrompt(false); startQuiz(q.deck, q.id, q.state); }} className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"><Play size={16}/></button>
-                              <button onClick={(e) => removePendingQuiz(q.id, e)} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"><Trash2 size={16}/></button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Custom Toast */}
       <AnimatePresence onExitComplete={() => { setToastExitX(0); setToastExitY(-20); }}>
