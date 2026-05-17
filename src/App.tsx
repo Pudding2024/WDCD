@@ -29,6 +29,8 @@ interface TestRecord {
 }
 
 interface IncompleteQuiz {
+  id: string;
+  timestamp: string;
   deck: Deck;
   state: { currentIndex: number; answers: { [index: number]: boolean } };
 }
@@ -45,6 +47,14 @@ const saveDecks = (decks: Deck[]) => localStorage.setItem(DB_KEY_DECKS, JSON.str
 
 const getHistory = (): TestRecord[] => JSON.parse(localStorage.getItem(DB_KEY_HISTORY) || '[]');
 const saveHistory = (history: TestRecord[]) => localStorage.setItem(DB_KEY_HISTORY, JSON.stringify(history));
+
+const getIncompleteQuizzes = (): IncompleteQuiz[] => {
+  try { return JSON.parse(localStorage.getItem(DB_KEY_INCOMPLETE) || '[]'); }
+  catch { return []; }
+};
+const saveIncompleteQuizzes = (quizzes: IncompleteQuiz[]) => {
+  localStorage.setItem(DB_KEY_INCOMPLETE, JSON.stringify(quizzes));
+};
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 const getTimestamp = () => {
@@ -73,22 +83,45 @@ export default function App() {
   const [navDirection, setNavDirection] = useState<1 | -1>(1);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
-  const [pendingQuiz, setPendingQuiz] = useState<IncompleteQuiz | null>(null);
+  const [pendingQuizzes, setPendingQuizzes] = useState<IncompleteQuiz[]>([]);
+  const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
+  const [showPendingPrompt, setShowPendingPrompt] = useState(true);
+  const [expandedPending, setExpandedPending] = useState(false);
+  
+  const [toastExitX, setToastExitX] = useState(0);
+  const [toastExitY, setToastExitY] = useState(-20);
 
   useEffect(() => {
-    const saved = localStorage.getItem(DB_KEY_INCOMPLETE);
-    if (saved) {
-      try {
-        setPendingQuiz(JSON.parse(saved));
-      } catch (e) {}
-    }
-  }, []);
+    setPendingQuizzes(getIncompleteQuizzes());
+  }, [historyKey]);
 
   useEffect(() => {
-    if (currentView === 'quiz' && activeDeck) {
-      localStorage.setItem(DB_KEY_INCOMPLETE, JSON.stringify({ deck: activeDeck, state: quizState }));
+    if (currentView === 'quiz' && activeDeck && activeQuizId) {
+      const quizzes = getIncompleteQuizzes();
+      const existingIdx = quizzes.findIndex(q => q.id === activeQuizId);
+      const newQuiz: IncompleteQuiz = {
+        id: activeQuizId,
+        timestamp: getTimestamp(),
+        deck: activeDeck,
+        state: quizState
+      };
+      if (existingIdx >= 0) {
+        quizzes[existingIdx] = newQuiz;
+      } else {
+        quizzes.push(newQuiz);
+      }
+      saveIncompleteQuizzes(quizzes);
+      setPendingQuizzes(quizzes);
     }
-  }, [activeDeck, quizState, currentView]);
+  }, [activeDeck, quizState, currentView, activeQuizId]);
+
+  const removePendingQuiz = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const newQuizzes = pendingQuizzes.filter(q => q.id !== id);
+    saveIncompleteQuizzes(newQuizzes);
+    setPendingQuizzes(newQuizzes);
+    if (newQuizzes.length === 0) setExpandedPending(false);
+  };
 
   const swipeStartRef = React.useRef({ x: 0, y: 0, active: false });
   const swipeOffsetRef = React.useRef(0);
@@ -173,9 +206,15 @@ export default function App() {
     showAlert('範例已複製到剪貼簿！');
   };
 
-  const startQuiz = (deck: Deck) => {
+  const startQuiz = (deck: Deck, resumeId?: string, resumeState?: any) => {
     setActiveDeck(deck);
-    setQuizState({ currentIndex: 0, answers: {} });
+    if (resumeId && resumeState) {
+      setActiveQuizId(resumeId);
+      setQuizState(resumeState);
+    } else {
+      setActiveQuizId(generateId());
+      setQuizState({ currentIndex: 0, answers: {} });
+    }
     navigateTo('quiz');
   };
 
@@ -193,8 +232,15 @@ export default function App() {
     const history = getHistory();
     history.push(record);
     saveHistory(history);
-    localStorage.removeItem(DB_KEY_INCOMPLETE);
-    setPendingQuiz(null);
+    
+    if (activeQuizId) {
+      const quizzes = getIncompleteQuizzes().filter(q => q.id !== activeQuizId);
+      saveIncompleteQuizzes(quizzes);
+      setPendingQuizzes(quizzes);
+      setActiveQuizId(null);
+    }
+    setHistoryKey(prev => prev + 1);
+    
     setActiveTestRecord(record);
     navigateTo('result', { replace: true });
   };
@@ -343,7 +389,7 @@ export default function App() {
                   startQuiz({ title, cards, rootTitle: activeTestRecord.rootTitle || activeTestRecord.sourceDeckTitle, rootCards: activeTestRecord.rootCards || activeTestRecord.originalCards });
                 }
               }} onShowAlert={showAlert} />}
-              {currentView === 'history' && <HistoryView key={historyKey} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} onShowPrompt={showPrompt} onViewRecord={(record: any) => { setActiveTestRecord(record); navigateTo('result'); }} />}
+              {currentView === 'history' && <HistoryView key={historyKey} pendingQuizzes={pendingQuizzes} removePendingQuiz={removePendingQuiz} onStartQuiz={startQuiz} onGlobalBackup={handleGlobalBackup} onGlobalRestore={handleGlobalRestore} onClearHistory={handleClearHistory} onClearDecks={handleClearDecks} onShowAlert={showAlert} onShowPrompt={showPrompt} onViewRecord={(record: any) => { setActiveTestRecord(record); navigateTo('result'); }} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -351,51 +397,112 @@ export default function App() {
 
       {/* Pending Quiz Prompt */}
       <AnimatePresence>
-        {pendingQuiz && currentView === 'landing' && (
+        {pendingQuizzes.length > 0 && showPendingPrompt && (
           <motion.div 
             initial={{ opacity: 0, y: -20, x: '-50%' }} 
             animate={{ opacity: 1, y: 0, x: '-50%' }} 
             exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="absolute top-20 left-1/2 z-40 bg-white border border-gray-100 shadow-xl rounded-xl p-4 flex items-center justify-between min-w-[320px] w-[90%] max-w-sm"
+            className="absolute top-16 left-1/2 z-40 w-full max-w-md px-4 flex flex-col items-center pointer-events-none"
           >
-            <div className="flex flex-col flex-1 mr-4 overflow-hidden">
-              <div className="font-bold text-gray-800 text-base mb-1">您有尚未做完的測驗</div>
-              <div className="text-sm text-gray-500 truncate">{pendingQuiz.deck.title} {pendingQuiz.state.currentIndex + 1}/{pendingQuiz.deck.cards.length}</div>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              <button 
-                onClick={() => {
-                  setActiveDeck(pendingQuiz.deck);
-                  setQuizState(pendingQuiz.state);
-                  setPendingQuiz(null);
-                  navigateTo('quiz');
-                }} 
-                className="p-2.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
-              >
-                <Play size={20}/>
-              </button>
-              <button 
-                onClick={() => {
-                  localStorage.removeItem(DB_KEY_INCOMPLETE);
-                  setPendingQuiz(null);
-                }} 
-                className="p-2.5 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
-              >
-                <Trash2 size={20}/>
-              </button>
-            </div>
+            {pendingQuizzes.length === 1 ? (
+              <div className="bg-white border border-gray-100 shadow-xl rounded-xl p-4 flex items-center justify-between w-full pointer-events-auto relative">
+                <button onClick={() => setShowPendingPrompt(false)} className="absolute -top-2 -right-2 bg-gray-200 hover:bg-gray-300 rounded-full p-1 shadow transition text-gray-500 hover:text-gray-700">
+                  <X size={14}/>
+                </button>
+                <div className="flex flex-col flex-1 mr-4 overflow-hidden">
+                  <div className="font-bold text-gray-800 text-base mb-1">您有尚未做完的測驗</div>
+                  <div className="text-sm text-gray-600 truncate">{pendingQuizzes[0].deck.title}</div>
+                  <div className="text-xs text-gray-400 mt-1">{pendingQuizzes[0].state.currentIndex + 1} / {pendingQuizzes[0].deck.cards.length} • {pendingQuizzes[0].timestamp}</div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button 
+                    onClick={() => startQuiz(pendingQuizzes[0].deck, pendingQuizzes[0].id, pendingQuizzes[0].state)} 
+                    className="p-2.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
+                  >
+                    <Play size={20}/>
+                  </button>
+                  <button 
+                    onClick={() => removePendingQuiz(pendingQuizzes[0].id)} 
+                    className="p-2.5 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
+                  >
+                    <Trash2 size={20}/>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full pointer-events-auto flex flex-col items-center relative">
+                <button onClick={() => setShowPendingPrompt(false)} className="absolute -top-2 -right-0 bg-gray-200 hover:bg-gray-300 rounded-full p-1 shadow z-20 transition text-gray-500 hover:text-gray-700">
+                  <X size={14}/>
+                </button>
+                {/* Mother Notification */}
+                <div 
+                  className="bg-white border border-gray-100 shadow-xl rounded-xl p-4 flex items-center justify-between w-full relative z-10 cursor-pointer" 
+                  onClick={() => setExpandedPending(!expandedPending)}
+                >
+                  <div className="flex flex-col flex-1 mr-4 overflow-hidden">
+                    <div className="font-bold text-gray-800 text-base mb-1">您有多個尚未做完的測驗</div>
+                    <div className="text-sm text-gray-500 truncate">共 {pendingQuizzes.length} 個測驗進行中</div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button className={`p-2.5 rounded-full transition ${expandedPending ? 'bg-green-600 text-white' : 'bg-green-100 text-green-600 hover:bg-green-200'}`}>
+                      <List size={20}/>
+                    </button>
+                  </div>
+                </div>
+                {/* Child Notifications (List) */}
+                <AnimatePresence>
+                  {expandedPending && (
+                    <motion.div 
+                      key="child-notifications"
+                      initial={{ opacity: 0, height: 0, scale: 0.95, y: -20 }} 
+                      animate={{ opacity: 1, height: 'auto', scale: 1, y: 0 }} 
+                      exit={{ opacity: 0, height: 0, scale: 0.95, y: -20, transition: { duration: 0.2 } }}
+                      className="w-full relative z-0 origin-top overflow-hidden"
+                    >
+                      <div className="w-[95%] mx-auto max-h-[60vh] overflow-y-auto pt-4 pb-2 px-1 flex flex-col gap-2 -mt-2" style={{ maskImage: 'linear-gradient(to bottom, transparent, black 16px)', WebkitMaskImage: 'linear-gradient(to bottom, transparent, black 16px)' }}>
+                        {[...pendingQuizzes].sort((a,b)=>b.timestamp.localeCompare(a.timestamp)).map((q) => (
+                          <div key={q.id} className="bg-gray-50 border border-gray-200 shadow-sm rounded-xl p-3 flex items-center justify-between w-full relative">
+                            <div className="flex flex-col flex-1 mr-2 overflow-hidden">
+                              <div className="font-bold text-gray-800 text-sm truncate">{q.deck.title}</div>
+                              <div className="text-xs text-gray-500 mt-1">{q.state.currentIndex + 1} / {q.deck.cards.length} • {q.timestamp}</div>
+                            </div>
+                            <div className="flex gap-1 shrink-0">
+                              <button onClick={(e) => { e.stopPropagation(); setShowPendingPrompt(false); startQuiz(q.deck, q.id, q.state); }} className="p-2 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"><Play size={16}/></button>
+                              <button onClick={(e) => removePendingQuiz(q.id, e)} className="p-2 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"><Trash2 size={16}/></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Custom Toast */}
-      <AnimatePresence>
+      <AnimatePresence onExitComplete={() => { setToastExitX(0); setToastExitY(-20); }}>
         {toastMessage && (
           <motion.div 
             initial={{ opacity: 0, y: -20, x: '-50%' }} 
             animate={{ opacity: 1, y: 0, x: '-50%' }} 
-            exit={{ opacity: 0, y: -20, x: '-50%' }}
-            className="absolute top-20 left-1/2 z-50 bg-white border border-gray-100 shadow-xl rounded-xl py-3 px-5 flex items-center justify-center pointer-events-none min-w-[250px]"
+            exit={{ opacity: 0, y: toastExitY, x: toastExitX !== 0 ? `calc(-50% + ${toastExitX}px)` : '-50%' }}
+            drag
+            dragDirectionLock
+            onDragEnd={(e, { offset }) => {
+              if (offset.x > 50) {
+                setToastExitX(200);
+                setToastExitY(0);
+                setToastMessage(null);
+              } else if (offset.y < -50) {
+                setToastExitX(0);
+                setToastExitY(-100);
+                setToastMessage(null);
+              }
+            }}
+            className="absolute top-32 left-1/2 z-50 bg-white border border-gray-100 shadow-xl rounded-xl py-3 px-5 flex items-center justify-center min-w-[250px] cursor-grab active:cursor-grabbing"
           >
             <span className="text-gray-800 font-medium text-sm">{toastMessage}</span>
           </motion.div>
@@ -784,14 +891,25 @@ function ResultView({ record, onRetest, onShowAlert }: { record: TestRecord, onR
   );
 }
 
-function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onClearDecks, onShowAlert, onShowPrompt, onViewRecord }: any) {
+function HistoryView({ pendingQuizzes, removePendingQuiz, onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHistory, onClearDecks, onShowAlert, onShowPrompt, onViewRecord }: any) {
   const [history, setHistory] = useState<TestRecord[]>([]);
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [combinedRecords, setCombinedRecords] = useState<any[]>([]);
 
   useEffect(() => {
-    setHistory(getHistory().reverse());
+    const rawHistory = getHistory();
+    setHistory(rawHistory.reverse());
     setDecks(getDecks());
   }, []);
+
+  useEffect(() => {
+    // combine and sort
+    const items = [
+      ...history.map(h => ({ ...h, isPending: false })),
+      ...(pendingQuizzes || []).map((q: any) => ({ ...q, isPending: true }))
+    ].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    setCombinedRecords(items);
+  }, [history, pendingQuizzes]);
 
   const removeDeckAt = (idx: number) => {
     onShowPrompt('確認要刪除此匯入的排組？', () => {
@@ -840,39 +958,63 @@ function HistoryView({ onStartQuiz, onGlobalBackup, onGlobalRestore, onClearHist
 
       <h3 className="font-bold text-gray-700 mb-3 border-b pb-2">測驗歷史</h3>
       <div className="flex flex-col gap-3">
-        {history.length === 0 && <div className="text-sm text-gray-400">尚無測驗歷史</div>}
-        {history.map(record => (
-          <div key={record.id} className="bg-white border rounded-xl p-3 flex flex-col gap-2 shadow-sm text-sm">
-            <div className="flex justify-between items-start">
-              <span className="font-bold text-gray-800">{record.sourceDeckTitle}</span>
-              <span className="text-xs text-gray-400">{record.timestamp}</span>
-            </div>
-            <div className="flex gap-2 text-xs text-gray-600">
-              <span>共 {record.originalCards.length} 題</span>
-              <span className="text-green-600">會 {Object.values(record.results).filter(v=>v).length}</span>
-              <span className="text-red-600">不會 {record.originalCards.length - Object.values(record.results).filter(v=>v).length}</span>
-            </div>
-            <div className="flex gap-2 mt-1 items-center">
-              <div className="flex gap-2 items-center">
-               <button onClick={() => {
-                 onStartQuiz({ title: record.sourceDeckTitle, cards: record.originalCards });
-               }} className="text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-600 rounded">重考</button>
-               <button onClick={() => {
-                 const mistakes = record.originalCards.filter((_, i) => !record.results[i]);
-                 if(mistakes.length > 0) onStartQuiz({ title: record.sourceDeckTitle + ' 錯題', cards: mistakes });
-                 else onShowAlert('本次測驗全對，無錯題可考！');
-               }} className="text-xs font-semibold px-2 py-1 bg-red-50 text-red-600 rounded">考錯題</button>
+        {combinedRecords.length === 0 && <div className="text-sm text-gray-400">尚無測驗歷史</div>}
+        {combinedRecords.map(record => {
+          if (record.isPending) {
+            return (
+              <div key={record.id} className="bg-gray-50 border border-gray-200 stroke-dashed rounded-xl p-3 flex flex-col gap-2 shadow-sm text-sm relative">
+                <div className="absolute top-2 right-2 text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">未完成</div>
+                <div className="flex justify-between items-start mr-10">
+                  <span className="font-bold text-gray-800">{record.deck.title}</span>
+                </div>
+                <div className="text-xs text-gray-500">{record.timestamp}</div>
+                <div className="flex gap-2 text-xs text-gray-600">
+                  <span>進度: {record.state.currentIndex + 1} / {record.deck.cards.length} 題</span>
+                </div>
+                <div className="flex gap-2 mt-1 items-center justify-end">
+                  <button onClick={() => onStartQuiz(record.deck, record.id, record.state)} className="text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-600 rounded flex items-center gap-1"><Play size={12}/>繼續</button>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText(JSON.stringify({ title: record.deck.title, cards: record.deck.cards }, null, 2)); onShowAlert('已複製測驗牌組');
+                  }} className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded flex items-center gap-1"><Download size={12}/>匯出</button>
+                  <button onClick={() => removePendingQuiz(record.id)} className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-600 rounded flex items-center gap-1"><Trash2 size={12}/>刪除</button>
+                </div>
               </div>
-              <div className="ml-auto flex gap-2 items-center">
-               <button onClick={() => onViewRecord(record)} className="text-xs font-semibold px-2 py-1 bg-green-50 text-green-600 rounded flex items-center gap-1"><List size={12}/>詳情</button>
-               <button onClick={() => {
-                 navigator.clipboard.writeText(JSON.stringify({ title: record.sourceDeckTitle, cards: record.originalCards }, null, 2)); onShowAlert('已複製測驗牌組');
-               }} className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded flex items-center gap-1"><Download size={12}/>匯出</button>
-               <button onClick={() => removeHistoryItem(record.id)} className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-600 rounded flex items-center gap-1"><Trash2 size={12}/>刪除</button>
+            );
+          }
+          
+          return (
+            <div key={record.id} className="bg-white border rounded-xl p-3 flex flex-col gap-2 shadow-sm text-sm">
+              <div className="flex justify-between items-start">
+                <span className="font-bold text-gray-800">{record.sourceDeckTitle}</span>
+                <span className="text-xs text-gray-400">{record.timestamp}</span>
+              </div>
+              <div className="flex gap-2 text-xs text-gray-600">
+                <span>共 {record.originalCards.length} 題</span>
+                <span className="text-green-600">會 {Object.values(record.results).filter(v=>v).length}</span>
+                <span className="text-red-600">不會 {record.originalCards.length - Object.values(record.results).filter(v=>v).length}</span>
+              </div>
+              <div className="flex gap-2 mt-1 items-center">
+                <div className="flex gap-2 items-center">
+                 <button onClick={() => {
+                   onStartQuiz({ title: record.sourceDeckTitle, cards: record.originalCards });
+                 }} className="text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-600 rounded">重考</button>
+                 <button onClick={() => {
+                   const mistakes = record.originalCards.filter((_, i) => !record.results[i]);
+                   if(mistakes.length > 0) onStartQuiz({ title: record.sourceDeckTitle + ' 錯題', cards: mistakes });
+                   else onShowAlert('本次測驗全對，無錯題可考！');
+                 }} className="text-xs font-semibold px-2 py-1 bg-red-50 text-red-600 rounded">考錯題</button>
+                </div>
+                <div className="ml-auto flex gap-2 items-center">
+                 <button onClick={() => onViewRecord(record)} className="text-xs font-semibold px-2 py-1 bg-green-50 text-green-600 rounded flex items-center gap-1"><List size={12}/>詳情</button>
+                 <button onClick={() => {
+                   navigator.clipboard.writeText(JSON.stringify({ title: record.sourceDeckTitle, cards: record.originalCards }, null, 2)); onShowAlert('已複製測驗牌組');
+                 }} className="text-xs font-semibold px-2 py-1 bg-gray-100 text-gray-700 rounded flex items-center gap-1"><Download size={12}/>匯出</button>
+                 <button onClick={() => removeHistoryItem(record.id)} className="text-xs font-semibold px-2 py-1 bg-red-100 text-red-600 rounded flex items-center gap-1"><Trash2 size={12}/>刪除</button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       
       {(history.length > 0 || decks.length > 0) && (
