@@ -733,44 +733,39 @@ function QuizView({
                 setIsFlipped(!isFlipped);
               }}
             >
-              <div
-                ref={menuRef}
-                className="absolute top-4 z-20"
-                style={{
-                  right: isFlipped ? 'auto' : '1rem',
-                  left: isFlipped ? '1rem' : 'auto',
-                  transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onPointerDown={(e) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  aria-label="選單"
-                  aria-expanded={isMenuOpen}
-                  className="p-1.5 rounded-full text-slate-500 hover:bg-slate-100"
-                  onClick={() => setIsMenuOpen((open) => !open)}
-                >
-                  <MoreVertical size={18} />
-                </button>
-                {isMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-lg text-sm overflow-hidden">
-                    <button
-                      type="button"
-                      className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        shuffleRemaining();
-                      }}
-                    >
-                      打亂未作答題目
-                    </button>
-                  </div>
-                )}
-              </div>
               {/* Front */}
               <div className="absolute w-full h-full bg-white rounded-2xl shadow-lg border-2 border-slate-100 p-6 flex items-center justify-center backface-hidden">
                 <h2 className="text-3xl font-bold text-center text-slate-800 break-words">{card.front}</h2>
+                <div
+                  ref={menuRef}
+                  className="absolute top-4 right-4 z-20"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    aria-label="選單"
+                    aria-expanded={isMenuOpen}
+                    className="p-1.5 rounded-full text-slate-500 hover:bg-slate-100"
+                    onClick={() => setIsMenuOpen((open) => !open)}
+                  >
+                    <MoreVertical size={18} />
+                  </button>
+                  {isMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-lg text-sm overflow-hidden">
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          shuffleRemaining();
+                        }}
+                      >
+                        打亂未作答題目
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               {/* Back */}
               <div className="absolute w-full h-full bg-indigo-50 rounded-2xl shadow-lg border-2 border-indigo-100 p-6 flex flex-col items-center justify-center backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
