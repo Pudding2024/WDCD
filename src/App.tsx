@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { Download, Upload, Copy, RotateCcw, Play, Check, X, ChevronLeft, ChevronRight, List, Trash2, History as HistoryIcon, Home as HomeIcon, Layers, BookOpen } from 'lucide-react';
+import { Download, Upload, Copy, MoreVertical, Play, Check, X, ChevronLeft, ChevronRight, List, Trash2, History as HistoryIcon, Home as HomeIcon, Layers, BookOpen } from 'lucide-react';
 
 // --- Types ---
 interface Card {
@@ -50,6 +50,15 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 const getTimestamp = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+};
+
+const shuffleArray = <T,>(input: T[]): T[] => {
+  const arr = [...input];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 };
 
 const SWIPE_EDGE_PX = 24;
@@ -335,7 +344,16 @@ export default function App() {
             >
               {currentView === 'landing' && <LandingView onSelectWordCards={() => navigateTo('import')} />}
               {currentView === 'import' && <ImportView onImport={handleImport} onCopyExample={copyExample} onProcessData={processImportData} onHandleFile={handleImportFile} onShowAlert={showAlert} />}
-              {currentView === 'quiz' && activeDeck && <QuizView deck={activeDeck} state={quizState} setState={setQuizState} onFinish={finishQuiz} />}
+              {currentView === 'quiz' && activeDeck && (
+                <QuizView
+                  deck={activeDeck}
+                  state={quizState}
+                  setState={setQuizState}
+                  onFinish={finishQuiz}
+                  onShowAlert={showAlert}
+                  onUpdateDeck={setActiveDeck}
+                />
+              )}
               {currentView === 'result' && activeTestRecord && <ResultView record={activeTestRecord} onRetest={(cards, title, isRoot) => {
                 if (isRoot) {
                   startQuiz({ title, cards });
@@ -571,15 +589,43 @@ function ImportView({
   );
 }
 
-function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any, setState: any, onFinish: (ans: any) => void }) {
+function QuizView({
+  deck,
+  state,
+  setState,
+  onFinish,
+  onShowAlert,
+  onUpdateDeck
+}: {
+  deck: Deck;
+  state: any;
+  setState: any;
+  onFinish: (ans: any) => void;
+  onShowAlert: (msg: string) => void;
+  onUpdateDeck: (deck: Deck) => void;
+}) {
   const [isFlipped, setIsFlipped] = useState(false);
   const [exitX, setExitX] = useState(0);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
   const card = deck.cards[state.currentIndex];
   const isFinished = state.currentIndex >= deck.cards.length;
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleClick = (event: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(event.target as Node)) return;
+      setIsMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isMenuOpen]);
 
   const handleAnswer = (know: boolean) => {
     setExitX(know ? 300 : -300);
     setIsFlipped(false);
+    setIsMenuOpen(false);
     const newAnswers = { ...state.answers, [state.currentIndex]: know };
     setState({ currentIndex: state.currentIndex + 1, answers: newAnswers });
     if (state.currentIndex + 1 >= deck.cards.length) finish(newAnswers);
@@ -593,6 +639,7 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
     if (state.currentIndex > 0) {
       setExitX(300);
       setIsFlipped(false);
+      setIsMenuOpen(false);
       setState({ ...state, currentIndex: state.currentIndex - 1 });
     }
   };
@@ -600,8 +647,42 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
     if (state.currentIndex < deck.cards.length - 1) {
       setExitX(-300);
       setIsFlipped(false);
+      setIsMenuOpen(false);
       setState({ ...state, currentIndex: state.currentIndex + 1 });
     }
+  };
+
+  const shuffleRemaining = () => {
+    const answeredEntries: { card: Card; answer: boolean }[] = [];
+    const unansweredCards: Card[] = [];
+
+    deck.cards.forEach((item, index) => {
+      const answer = state.answers[index];
+      if (answer === true || answer === false) {
+        answeredEntries.push({ card: item, answer });
+      } else {
+        unansweredCards.push(item);
+      }
+    });
+
+    if (unansweredCards.length === 0) {
+      onShowAlert('已無未作答題目');
+      setIsMenuOpen(false);
+      return;
+    }
+
+    const shuffledUnanswered = shuffleArray(unansweredCards);
+    const newCards = [...answeredEntries.map((entry) => entry.card), ...shuffledUnanswered];
+    const newAnswers: { [index: number]: boolean } = {};
+    answeredEntries.forEach((entry, idx) => {
+      newAnswers[idx] = entry.answer;
+    });
+
+    onUpdateDeck({ ...deck, cards: newCards });
+    setState({ currentIndex: answeredEntries.length, answers: newAnswers });
+    setIsFlipped(false);
+    setExitX(0);
+    setIsMenuOpen(false);
   };
 
   if (isFinished) return null;
@@ -647,12 +728,44 @@ function QuizView({ deck, state, setState, onFinish }: { deck: Deck, state: any,
             <motion.div
               className="w-full h-full cursor-pointer preserve-3d transition-transform duration-500 ease-in-out relative"
               style={{ transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
-              onClick={() => setIsFlipped(!isFlipped)}
+              onClick={() => {
+                setIsMenuOpen(false);
+                setIsFlipped(!isFlipped);
+              }}
             >
               {/* Front */}
               <div className="absolute w-full h-full bg-white rounded-2xl shadow-lg border-2 border-slate-100 p-6 flex items-center justify-center backface-hidden">
                 <h2 className="text-3xl font-bold text-center text-slate-800 break-words">{card.front}</h2>
-                <div className="absolute top-4 right-4 animate-pulse opacity-50"><RotateCcw size={20} /></div>
+                <div
+                  ref={menuRef}
+                  className="absolute top-4 right-4 z-10"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    aria-label="選單"
+                    aria-expanded={isMenuOpen}
+                    className="p-1.5 rounded-full text-slate-500 hover:bg-slate-100"
+                    onClick={() => setIsMenuOpen((open) => !open)}
+                  >
+                    <MoreVertical size={18} />
+                  </button>
+                  {isMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-44 bg-white border border-slate-200 rounded-lg shadow-lg text-sm overflow-hidden">
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-2 hover:bg-slate-50 text-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          shuffleRemaining();
+                        }}
+                      >
+                        打亂未作答題目
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               {/* Back */}
               <div className="absolute w-full h-full bg-indigo-50 rounded-2xl shadow-lg border-2 border-indigo-100 p-6 flex flex-col items-center justify-center backface-hidden" style={{ transform: 'rotateY(180deg)' }}>
