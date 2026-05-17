@@ -172,7 +172,7 @@ export default function App() {
     history.push(record);
     saveHistory(history);
     setActiveTestRecord(record);
-    navigateTo('result');
+    navigateTo('result', { replace: true });
   };
 
   const handleGlobalBackup = () => {
