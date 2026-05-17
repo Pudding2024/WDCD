@@ -265,7 +265,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-4 py-2 bg-white border-b">
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-50">
         <button
           onClick={goBack}
           disabled={!canGoBack}
