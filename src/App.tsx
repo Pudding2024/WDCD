@@ -28,11 +28,17 @@ interface TestRecord {
   rootCards?: Card[];
 }
 
+interface IncompleteQuiz {
+  deck: Deck;
+  state: { currentIndex: number; answers: { [index: number]: boolean } };
+}
+
 type View = 'landing' | 'import' | 'quiz' | 'result' | 'history';
 
 // --- DB/LocalStorage ---
 const DB_KEY_DECKS = 'flashcards_decks';
 const DB_KEY_HISTORY = 'flashcards_history';
+const DB_KEY_INCOMPLETE = 'flashcards_incomplete';
 
 const getDecks = (): Deck[] => JSON.parse(localStorage.getItem(DB_KEY_DECKS) || '[]');
 const saveDecks = (decks: Deck[]) => localStorage.setItem(DB_KEY_DECKS, JSON.stringify(decks));
@@ -67,6 +73,22 @@ export default function App() {
   const [navDirection, setNavDirection] = useState<1 | -1>(1);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [pendingQuiz, setPendingQuiz] = useState<IncompleteQuiz | null>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(DB_KEY_INCOMPLETE);
+    if (saved) {
+      try {
+        setPendingQuiz(JSON.parse(saved));
+      } catch (e) {}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentView === 'quiz' && activeDeck) {
+      localStorage.setItem(DB_KEY_INCOMPLETE, JSON.stringify({ deck: activeDeck, state: quizState }));
+    }
+  }, [activeDeck, quizState, currentView]);
 
   const swipeStartRef = React.useRef({ x: 0, y: 0, active: false });
   const swipeOffsetRef = React.useRef(0);
@@ -171,6 +193,8 @@ export default function App() {
     const history = getHistory();
     history.push(record);
     saveHistory(history);
+    localStorage.removeItem(DB_KEY_INCOMPLETE);
+    setPendingQuiz(null);
     setActiveTestRecord(record);
     navigateTo('result', { replace: true });
   };
@@ -324,6 +348,45 @@ export default function App() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Pending Quiz Prompt */}
+      <AnimatePresence>
+        {pendingQuiz && currentView === 'landing' && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20, x: '-50%' }} 
+            animate={{ opacity: 1, y: 0, x: '-50%' }} 
+            exit={{ opacity: 0, y: -20, x: '-50%' }}
+            className="absolute top-20 left-1/2 z-40 bg-white border border-gray-100 shadow-xl rounded-xl p-4 flex items-center justify-between min-w-[320px] w-[90%] max-w-sm"
+          >
+            <div className="flex flex-col flex-1 mr-4 overflow-hidden">
+              <div className="font-bold text-gray-800 text-base mb-1">您有尚未做完的測驗</div>
+              <div className="text-sm text-gray-500 truncate">{pendingQuiz.deck.title} {pendingQuiz.state.currentIndex + 1}/{pendingQuiz.deck.cards.length}</div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button 
+                onClick={() => {
+                  setActiveDeck(pendingQuiz.deck);
+                  setQuizState(pendingQuiz.state);
+                  setPendingQuiz(null);
+                  navigateTo('quiz');
+                }} 
+                className="p-2.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200 transition"
+              >
+                <Play size={20}/>
+              </button>
+              <button 
+                onClick={() => {
+                  localStorage.removeItem(DB_KEY_INCOMPLETE);
+                  setPendingQuiz(null);
+                }} 
+                className="p-2.5 bg-red-100 text-red-600 rounded-full hover:bg-red-200 transition"
+              >
+                <Trash2 size={20}/>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Custom Toast */}
       <AnimatePresence>
