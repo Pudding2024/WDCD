@@ -491,7 +491,7 @@ export default function App() {
             exit={{ opacity: 0, y: toastExitY, x: toastExitX !== 0 ? `calc(-50% + ${toastExitX}px)` : '-50%' }}
             drag
             dragDirectionLock
-            onDragEnd={(e, { offset }) => {
+            onDragEnd={(_e, { offset }) => {
               if (offset.x > 50) {
                 setToastExitX(200);
                 setToastExitY(0);
@@ -999,7 +999,7 @@ function HistoryView({ pendingQuizzes, removePendingQuiz, onStartQuiz, onGlobalB
                    onStartQuiz({ title: record.sourceDeckTitle, cards: record.originalCards });
                  }} className="text-xs font-semibold px-2 py-1 bg-blue-50 text-blue-600 rounded">重考</button>
                  <button onClick={() => {
-                   const mistakes = record.originalCards.filter((_, i) => !record.results[i]);
+                   const mistakes = record.originalCards.filter((_: any, i: number) => !record.results[i]);
                    if(mistakes.length > 0) onStartQuiz({ title: record.sourceDeckTitle + ' 錯題', cards: mistakes });
                    else onShowAlert('本次測驗全對，無錯題可考！');
                  }} className="text-xs font-semibold px-2 py-1 bg-red-50 text-red-600 rounded">考錯題</button>
